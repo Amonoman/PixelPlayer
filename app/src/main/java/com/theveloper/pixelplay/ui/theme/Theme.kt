@@ -16,8 +16,11 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.Density
 import androidx.core.view.WindowCompat
 import com.theveloper.pixelplay.presentation.viewmodel.ColorSchemePair
 import androidx.core.graphics.ColorUtils
@@ -104,11 +107,25 @@ fun PixelPlayTheme(
     }
 
     CompositionLocalProvider(LocalPixelPlayDarkTheme provides darkTheme) {
-        MaterialTheme(
-            colorScheme = finalColorScheme,
-            typography = Typography,
-            shapes = Shapes,
-            content = content
+        // Global proportional scaling: scale all dp/sp values based on screen height.
+        // Reference height is 800dp (typical 6.1" phone). Smaller screens get
+        // proportionally smaller UI, larger screens stay at 1×.
+        val configuration = LocalConfiguration.current
+        val currentDensity = LocalDensity.current
+        val screenHeightDp = configuration.screenHeightDp
+        val scaleFactor = (screenHeightDp / 800f).coerceIn(0.78f, 1f)
+        val scaledDensity = Density(
+            density = currentDensity.density * scaleFactor,
+            fontScale = currentDensity.fontScale
         )
+
+        CompositionLocalProvider(LocalDensity provides scaledDensity) {
+            MaterialTheme(
+                colorScheme = finalColorScheme,
+                typography = Typography,
+                shapes = Shapes,
+                content = content
+            )
+        }
     }
 }

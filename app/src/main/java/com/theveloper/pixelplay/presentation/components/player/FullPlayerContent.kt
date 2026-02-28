@@ -893,8 +893,16 @@ private fun FullPlayerAlbumCoverSection(
             CarouselStyle.TWO_PEEK -> maxWidth * 0.6f
             else -> maxWidth * 0.8f
         }
-        // Cap album art height to available space so controls aren't pushed off-screen
+        // Cap album art height to available space so controls aren't pushed off-screen.
+        // Also constrain width to match so the art stays square on small screens.
         val carouselHeight = minOf(desiredHeight, maxHeight)
+        val carouselModifier = if (carouselHeight < desiredHeight) {
+            // Height was capped — constrain width to keep art square
+            val squareSize = carouselHeight
+            Modifier.size(squareSize).align(Alignment.Center)
+        } else {
+            Modifier.fillMaxWidth().height(carouselHeight)
+        }
 
         DelayedContent(
             shouldDelay = shouldDelay,
@@ -902,7 +910,7 @@ private fun FullPlayerAlbumCoverSection(
             applyPlaceholderDelayOnClose = loadingTweaks.applyPlaceholdersOnClose,
             switchOnDragRelease = loadingTweaks.switchOnDragRelease,
             isSheetDragGestureActive = isSheetDragGestureActive,
-            sharedBoundsModifier = Modifier.fillMaxWidth().height(carouselHeight),
+            sharedBoundsModifier = carouselModifier,
             expansionFractionProvider = expansionFractionProvider,
             isExpandedOverride = currentSheetState == PlayerSheetState.EXPANDED,
             normalStartThreshold = 0.08f,
@@ -911,9 +919,7 @@ private fun FullPlayerAlbumCoverSection(
             placeholder = {
                 if (loadingTweaks.transparentPlaceholders) {
                     Box(
-                        Modifier
-                            .height(carouselHeight)
-                            .fillMaxWidth()
+                        carouselModifier
                             .graphicsLayer {
                                 scaleX = albumArtScale
                                 scaleY = albumArtScale
@@ -942,8 +948,7 @@ private fun FullPlayerAlbumCoverSection(
                     }
                 },
                 carouselStyle = carouselStyle,
-                modifier = Modifier
-                    .height(carouselHeight)
+                modifier = carouselModifier
                     .graphicsLayer {
                         scaleX = albumArtScale
                         scaleY = albumArtScale
