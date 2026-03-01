@@ -40,6 +40,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -132,6 +133,28 @@ import java.util.Locale
 import kotlin.math.roundToLong
 import com.theveloper.pixelplay.presentation.components.WavySliderExpressive
 import com.theveloper.pixelplay.presentation.components.ToggleSegmentButton
+
+private val MetadataAndProgressMinHeight = 56.dp
+
+private data class FullPlayerControlLayoutSpec(
+    val controlHeight: Dp,
+    val playPauseIconSize: Dp,
+    val iconSize: Dp,
+    val controlHorizontalPadding: Dp,
+    val controlVerticalPadding: Dp,
+    val controlToToggleSpacing: Dp,
+    val toggleRowMinHeight: Dp,
+    val toggleRowMaxHeight: Dp,
+    val toggleRowHorizontalPadding: Dp,
+    val toggleRowBottomPadding: Dp
+) {
+    val sharedBoundsHeight: Dp
+        get() = controlHeight +
+            (controlVerticalPadding * 2f) +
+            controlToToggleSpacing +
+            toggleRowMinHeight +
+            toggleRowBottomPadding
+}
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @SuppressLint("StateFlowValueCalledInComposition")
@@ -443,7 +466,6 @@ fun FullPlayerContent(
             onArtistClick = onSongMetadataArtistClick
         )
     }
-
     Scaffold(
         containerColor = Color.Transparent,
         modifier = Modifier.pointerInput(currentSheetState) {
@@ -960,6 +982,38 @@ private fun FullPlayerAlbumCoverSection(
 }
 
 @Composable
+private fun rememberFullPlayerControlLayoutSpec(): FullPlayerControlLayoutSpec {
+    val configuration = LocalConfiguration.current
+    val screenWidthDp = configuration.screenWidthDp
+    val screenHeightDp = configuration.screenHeightDp
+    val isCompactPhone = screenWidthDp < 360
+    val isTallPhone = screenHeightDp >= 860 && screenWidthDp in 360..600
+    val adaptiveSizes = rememberAdaptivePlaybackControlSizes()
+    return remember(adaptiveSizes, screenWidthDp, screenHeightDp) {
+        FullPlayerControlLayoutSpec(
+            controlHeight = adaptiveSizes.height,
+            playPauseIconSize = adaptiveSizes.playPauseIconSize,
+            iconSize = adaptiveSizes.iconSize,
+            controlHorizontalPadding = 12.dp,
+            controlVerticalPadding = 8.dp,
+            controlToToggleSpacing = if (isCompactPhone) 8.dp else 10.dp,
+            toggleRowMinHeight = when {
+                isCompactPhone -> 50.dp
+                isTallPhone -> 60.dp
+                else -> 56.dp
+            },
+            toggleRowMaxHeight = when {
+                isCompactPhone -> 66.dp
+                isTallPhone -> 82.dp
+                else -> 76.dp
+            },
+            toggleRowHorizontalPadding = if (isCompactPhone) 20.dp else 24.dp,
+            toggleRowBottomPadding = if (isCompactPhone) 4.dp else 6.dp
+        )
+    }
+}
+
+@Composable
 private fun FullPlayerControlsSection(
     loadingTweaks: FullPlayerLoadingTweaks,
     isSheetDragGestureActive: Boolean,
@@ -986,6 +1040,7 @@ private fun FullPlayerControlsSection(
         tween<Float>(durationMillis = 240, easing = FastOutSlowInEasing)
     }
     val shouldDelay = loadingTweaks.delayAll || loadingTweaks.delayControls
+    val controlLayoutSpec = rememberFullPlayerControlLayoutSpec()
 
     DelayedContent(
         shouldDelay = shouldDelay,
@@ -993,7 +1048,7 @@ private fun FullPlayerControlsSection(
         applyPlaceholderDelayOnClose = loadingTweaks.applyPlaceholdersOnClose,
         switchOnDragRelease = loadingTweaks.switchOnDragRelease,
         isSheetDragGestureActive = isSheetDragGestureActive,
-        sharedBoundsModifier = Modifier.fillMaxWidth().height(160.dp),
+        sharedBoundsModifier = Modifier.fillMaxWidth().height(controlLayoutSpec.sharedBoundsHeight),
         expansionFractionProvider = expansionFractionProvider,
         isExpandedOverride = currentSheetState == PlayerSheetState.EXPANDED,
         normalStartThreshold = 0.42f,
@@ -1001,26 +1056,32 @@ private fun FullPlayerControlsSection(
         delayCloseThreshold = 1f - (loadingTweaks.contentCloseThresholdPercent / 100f),
         placeholder = {
             if (loadingTweaks.transparentPlaceholders) {
-                Box(Modifier.fillMaxWidth().height(160.dp))
+                Box(Modifier.fillMaxWidth().height(controlLayoutSpec.sharedBoundsHeight))
             } else {
-                ControlsPlaceholder(placeholderColor, placeholderOnColor)
+                ControlsPlaceholder(
+                    color = placeholderColor,
+                    onColor = placeholderOnColor,
+                    layoutSpec = controlLayoutSpec
+                )
             }
         }
     ) {
-        val adaptiveSizes = rememberAdaptivePlaybackControlSizes()
         Column(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             AnimatedPlaybackControls(
                 modifier = Modifier
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .padding(
+                        horizontal = controlLayoutSpec.controlHorizontalPadding,
+                        vertical = controlLayoutSpec.controlVerticalPadding
+                    ),
                 isPlayingProvider = isPlayingProvider,
                 onPrevious = onPrevious,
                 onPlayPause = onPlayPause,
                 onNext = onNext,
-                height = adaptiveSizes.height,
-                playPauseIconSize = adaptiveSizes.playPauseIconSize,
-                iconSize = adaptiveSizes.iconSize,
+                height = controlLayoutSpec.controlHeight,
+                playPauseIconSize = controlLayoutSpec.playPauseIconSize,
+                iconSize = controlLayoutSpec.iconSize,
                 pressAnimationSpec = stableControlAnimationSpec,
                 releaseDelay = 220L,
                 colorOtherButtons = playerSecondaryAccentColor,
@@ -1033,14 +1094,17 @@ private fun FullPlayerControlsSection(
                 tintNextIcon = playerAccentColor
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(controlLayoutSpec.controlToToggleSpacing))
 
             BottomToggleRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 50.dp, max = 66.dp)
-                    .padding(horizontal = 20.dp, vertical = 0.dp)
-                    .padding(bottom = 4.dp),
+                    .heightIn(
+                        min = controlLayoutSpec.toggleRowMinHeight,
+                        max = controlLayoutSpec.toggleRowMaxHeight
+                    )
+                    .padding(horizontal = controlLayoutSpec.toggleRowHorizontalPadding, vertical = 0.dp)
+                    .padding(bottom = controlLayoutSpec.toggleRowBottomPadding),
                 isShuffleEnabled = isShuffleEnabledProvider(),
                 repeatMode = repeatModeProvider(),
                 isFavoriteProvider = isFavoriteProvider,
@@ -1124,7 +1188,7 @@ private fun FullPlayerSongMetadataSection(
         applyPlaceholderDelayOnClose = loadingTweaks.applyPlaceholdersOnClose,
         switchOnDragRelease = loadingTweaks.switchOnDragRelease,
         isSheetDragGestureActive = isSheetDragGestureActive,
-        sharedBoundsModifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+        sharedBoundsModifier = Modifier.fillMaxWidth().heightIn(min = MetadataAndProgressMinHeight),
         expansionFractionProvider = expansionFractionProvider,
         isExpandedOverride = currentSheetState == PlayerSheetState.EXPANDED,
         normalStartThreshold = 0.20f,
@@ -1132,7 +1196,7 @@ private fun FullPlayerSongMetadataSection(
         delayCloseThreshold = 1f - (loadingTweaks.contentCloseThresholdPercent / 100f),
         placeholder = {
             if (loadingTweaks.transparentPlaceholders) {
-                Box(Modifier.fillMaxWidth().height(56.dp))
+                Box(Modifier.fillMaxWidth().height(MetadataAndProgressMinHeight))
             } else {
                 MetadataPlaceholder(
                     expansionFraction = expansionFractionProvider(),
@@ -1171,6 +1235,12 @@ private fun FullPlayerPortraitContent(
     playerProgressSection: @Composable () -> Unit,
     controlsSection: @Composable () -> Unit
 ) {
+    val isTallPortraitScreen = LocalConfiguration.current.screenHeightDp >= 860
+    val contentSectionSpacing = if (isTallPortraitScreen) 6.dp else 2.dp
+    val metadataProgressSpacing = if (isTallPortraitScreen) 4.dp else 2.dp
+    val tallAlbumOffsetY = if (isTallPortraitScreen) (-12).dp else 0.dp
+    val tallLowerContentOffsetY = if (isTallPortraitScreen) 8.dp else 0.dp
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1180,16 +1250,30 @@ private fun FullPlayerPortraitContent(
                 vertical = 0.dp
             ),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceBetween
+        verticalArrangement = if (isTallPortraitScreen) {
+            Arrangement.spacedBy(contentSectionSpacing, Alignment.CenterVertically)
+        } else {
+            Arrangement.Top
+        }
     ) {
-        // All sections scale proportionally with available screen height
-        albumCoverSection(Modifier.weight(0.50f, fill = false))
+        if (isTallPortraitScreen) {
+            // On tall phones, use fixed spacing and center the whole stack
+            // to avoid large top/bottom gaps from weighted layouts.
+            albumCoverSection(
+                Modifier
+                    .fillMaxWidth()
+                    .offset(y = tallAlbumOffsetY)
+            )
+        } else {
+            // On smaller phones, album art flexes to consume remaining room so controls stay visible.
+            albumCoverSection(Modifier.weight(1f, fill = false))
+        }
 
         Column(
             modifier = Modifier
-                .weight(0.22f, fill = false)
-                .fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+                .fillMaxWidth()
+                .padding(top = tallLowerContentOffsetY),
+            verticalArrangement = Arrangement.spacedBy(metadataProgressSpacing)
         ) {
             Box(Modifier.align(Alignment.Start)) {
                 songMetadataSection()
@@ -1198,7 +1282,9 @@ private fun FullPlayerPortraitContent(
         }
 
         Box(
-            modifier = Modifier.weight(0.28f, fill = false),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = tallLowerContentOffsetY),
             contentAlignment = Alignment.Center
         ) {
             controlsSection()
@@ -1270,7 +1356,7 @@ private fun SongMetadataDisplaySection(
     Row(
         modifier
             .fillMaxWidth()
-            .heightIn(min = 56.dp),
+            .heightIn(min = MetadataAndProgressMinHeight),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -1570,7 +1656,7 @@ private fun PlayerProgressBarSection(
         applyPlaceholderDelayOnClose = loadingTweaks?.applyPlaceholdersOnClose ?: true,
         switchOnDragRelease = loadingTweaks?.switchOnDragRelease ?: false,
         isSheetDragGestureActive = isSheetDragGestureActive,
-        sharedBoundsModifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+        sharedBoundsModifier = Modifier.fillMaxWidth().heightIn(min = MetadataAndProgressMinHeight),
         expansionFractionProvider = expansionFractionProvider,
         isExpandedOverride = currentSheetState == PlayerSheetState.EXPANDED,
         normalStartThreshold = 0.08f,
@@ -1578,7 +1664,7 @@ private fun PlayerProgressBarSection(
         delayCloseThreshold = 1f - ((loadingTweaks?.contentCloseThresholdPercent ?: 0) / 100f),
         placeholder = {
              if (loadingTweaks?.transparentPlaceholders == true) {
-                 Box(Modifier.fillMaxWidth().heightIn(min = 56.dp))
+                 Box(Modifier.fillMaxWidth().heightIn(min = MetadataAndProgressMinHeight))
              } else {
                  ProgressPlaceholder(
                      expansionFraction = expansionFraction,
@@ -1593,7 +1679,7 @@ private fun PlayerProgressBarSection(
             modifier = modifier
                 .fillMaxWidth()
                 .padding(vertical = lerp(2.dp, 0.dp, expansionFraction))
-                .heightIn(min = 56.dp)
+                .heightIn(min = MetadataAndProgressMinHeight)
         ) {
             
             // Isolated Slider Component
@@ -2040,7 +2126,7 @@ private fun MetadataPlaceholder(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 70.dp)
+            .heightIn(min = MetadataAndProgressMinHeight)
             .graphicsLayer {
                 alpha = expansionFraction.coerceIn(0f, 1f)
                 translationY = (1f - expansionFraction.coerceIn(0f, 1f)) * 24f
@@ -2118,7 +2204,7 @@ private fun ProgressPlaceholder(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 70.dp)
+            .heightIn(min = MetadataAndProgressMinHeight)
             .padding(vertical = lerp(2.dp, 0.dp, expansionFraction.coerceIn(0f, 1f))),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -2198,7 +2284,11 @@ private fun ProgressPlaceholder(
 }
 
 @Composable
-private fun ControlsPlaceholder(color: Color, onColor: Color) {
+private fun ControlsPlaceholder(
+    color: Color,
+    onColor: Color,
+    layoutSpec: FullPlayerControlLayoutSpec
+) {
     val rowCorners = 60.dp
 
     Column(
@@ -2207,9 +2297,12 @@ private fun ControlsPlaceholder(color: Color, onColor: Color) {
     ) {
         Box(
             modifier = Modifier
-                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .padding(
+                    horizontal = layoutSpec.controlHorizontalPadding,
+                    vertical = layoutSpec.controlVerticalPadding
+                )
                 .fillMaxWidth()
-                .height(80.dp)
+                .height(layoutSpec.controlHeight)
         ) {
             Row(
                 modifier = Modifier.fillMaxSize(),
@@ -2250,14 +2343,17 @@ private fun ControlsPlaceholder(color: Color, onColor: Color) {
             }
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(layoutSpec.controlToToggleSpacing))
 
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 66.dp, max = 86.dp)
-                .padding(horizontal = 26.dp)
-                .padding(bottom = 6.dp)
+                .heightIn(
+                    min = layoutSpec.toggleRowMinHeight,
+                    max = layoutSpec.toggleRowMaxHeight
+                )
+                .padding(horizontal = layoutSpec.toggleRowHorizontalPadding)
+                .padding(bottom = layoutSpec.toggleRowBottomPadding)
                 .background(
                     color = onColor.copy(alpha = 0.1f),
                     shape = RoundedCornerShape(rowCorners)
