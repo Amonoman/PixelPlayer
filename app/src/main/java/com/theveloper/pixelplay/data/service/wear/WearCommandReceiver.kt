@@ -1084,6 +1084,15 @@ class WearCommandReceiver : WearableListenerService() {
 
     // ---- Transfer handling ----
 
+    private data class PreparedTransferRequest(
+        val nodeId: String,
+        val requestId: String,
+        val songId: String,
+        val fileSize: Long,
+        val inputStream: InputStream,
+        val artworkBytes: ByteArray?,
+    )
+
     private suspend fun handleTransferRequest(messageEvent: MessageEvent) {
         val requestJson = String(messageEvent.data, Charsets.UTF_8)
         val request = try {
@@ -1092,6 +1101,7 @@ class WearCommandReceiver : WearableListenerService() {
             Timber.tag(TAG).e(e, "Failed to parse transfer request")
             return
         }
+        var openedInputStream: InputStream? = null
 
         Timber.tag(TAG).d("Transfer request: songId=${request.songId}, requestId=${request.requestId}")
 
@@ -1131,6 +1141,7 @@ class WearCommandReceiver : WearableListenerService() {
                 )
                 return
             }
+            openedInputStream = fileInputStream
 
             val fileSize = getSongFileSize(song)
             val paletteSeedArgb = resolvePaletteSeedArgb(song)
@@ -1180,43 +1191,80 @@ class WearCommandReceiver : WearableListenerService() {
 
             Timber.tag(TAG).d("Sent transfer metadata: ${song.title} ($fileSize bytes)")
 
-            // 5. Stream artwork via dedicated channel (optional)
-            if (transferArtworkBytes != null) {
-                runCatching {
-                    streamArtworkToWatch(
-                        nodeId = messageEvent.sourceNodeId,
-                        requestId = request.requestId,
-                        songId = song.id,
-                        artworkBytes = transferArtworkBytes,
-                    )
-                }.onFailure { error ->
-                    Timber.tag(TAG).w(error, "Artwork transfer failed for songId=${song.id}")
-                }
-            }
-
-            if (transferCancellationStore.consumeCancellation(request.requestId)) {
-                sendTransferProgress(
-                    nodeId = messageEvent.sourceNodeId,
-                    requestId = request.requestId,
-                    songId = song.id,
-                    bytesTransferred = 0L,
-                    totalBytes = fileSize,
-                    status = WearTransferProgress.STATUS_CANCELLED,
-                )
-                return
-            }
-
-            // 6. Stream audio via ChannelClient
-            streamFileToWatch(
-                messageEvent.sourceNodeId, request.requestId, song.id,
-                fileInputStream, fileSize,
+            val preparedTransfer = PreparedTransferRequest(
+                nodeId = messageEvent.sourceNodeId,
+                requestId = request.requestId,
+                songId = song.id,
+                fileSize = fileSize,
+                inputStream = fileInputStream,
+                artworkBytes = transferArtworkBytes,
             )
+
+            scope.launch {
+                continueTransferRequest(preparedTransfer)
+            }
+            openedInputStream = null
         } catch (e: Exception) {
             Timber.tag(TAG).e(e, "Failed to handle transfer request")
             sendTransferProgress(
                 messageEvent.sourceNodeId, request.requestId, request.songId,
                 0, 0, WearTransferProgress.STATUS_FAILED, e.message,
             )
+            runCatching { openedInputStream?.close() }
+        }
+    }
+
+    private suspend fun continueTransferRequest(transfer: PreparedTransferRequest) {
+        var audioStreamingStarted = false
+        try {
+            if (transfer.artworkBytes != null) {
+                runCatching {
+                    streamArtworkToWatch(
+                        nodeId = transfer.nodeId,
+                        requestId = transfer.requestId,
+                        songId = transfer.songId,
+                        artworkBytes = transfer.artworkBytes,
+                    )
+                }.onFailure { error ->
+                    Timber.tag(TAG).w(error, "Artwork transfer failed for songId=${transfer.songId}")
+                }
+            }
+
+            if (transferCancellationStore.consumeCancellation(transfer.requestId)) {
+                sendTransferProgress(
+                    nodeId = transfer.nodeId,
+                    requestId = transfer.requestId,
+                    songId = transfer.songId,
+                    bytesTransferred = 0L,
+                    totalBytes = transfer.fileSize,
+                    status = WearTransferProgress.STATUS_CANCELLED,
+                )
+                return
+            }
+
+            audioStreamingStarted = true
+            streamFileToWatch(
+                nodeId = transfer.nodeId,
+                requestId = transfer.requestId,
+                songId = transfer.songId,
+                inputStream = transfer.inputStream,
+                fileSize = transfer.fileSize,
+            )
+        } catch (e: Exception) {
+            Timber.tag(TAG).e(e, "Failed to continue transfer request")
+            sendTransferProgress(
+                nodeId = transfer.nodeId,
+                requestId = transfer.requestId,
+                songId = transfer.songId,
+                bytesTransferred = 0L,
+                totalBytes = transfer.fileSize,
+                status = WearTransferProgress.STATUS_FAILED,
+                error = e.message,
+            )
+        } finally {
+            if (!audioStreamingStarted) {
+                runCatching { transfer.inputStream.close() }
+            }
         }
     }
 

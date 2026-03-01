@@ -26,7 +26,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.tasks.await
 import kotlinx.serialization.json.Json
 import timber.log.Timber
@@ -315,7 +314,7 @@ class WearDataListenerService : WearableListenerService() {
         when (channel.path) {
             WearDataPaths.TRANSFER_CHANNEL -> {
                 Timber.tag(TAG).d("Audio transfer channel opened")
-                runBlocking(Dispatchers.IO) {
+                scope.launch {
                     val channelClient = Wearable.getChannelClient(this@WearDataListenerService)
                     runCatching {
                         channelClient.getInputStream(channel).await().use { inputStream ->
@@ -333,7 +332,7 @@ class WearDataListenerService : WearableListenerService() {
 
             WearDataPaths.TRANSFER_ARTWORK_CHANNEL -> {
                 Timber.tag(TAG).d("Artwork transfer channel opened")
-                runBlocking(Dispatchers.IO) {
+                scope.launch {
                     val channelClient = Wearable.getChannelClient(this@WearDataListenerService)
                     runCatching {
                         channelClient.getInputStream(channel).await().use { stream ->
