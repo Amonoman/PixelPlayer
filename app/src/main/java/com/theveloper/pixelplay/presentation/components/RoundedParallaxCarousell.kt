@@ -862,9 +862,10 @@ private data class Arrangement(
                     for (sc in smallCounts) {
                         // fijar tamaños (small acotado, medium entre small y large, large <= target)
                         val large = min(targetLargeSize, availableSpace)
-                        val small = targetSmallSize.coerceIn(minSmallSize, maxSmallSize)
+                        // Ensure small never exceeds large to prevent inverted coerceIn range
+                        val small = targetSmallSize.coerceIn(minSmallSize, minOf(maxSmallSize, large))
                         val medium = if (targetMediumSize > 0f) {
-                            targetMediumSize.coerceIn(small, large)
+                            targetMediumSize.coerceIn(minOf(small, large), maxOf(small, large))
                         } else (large + small) / 2f
 
                         val items = lc + mc + sc
@@ -913,7 +914,7 @@ private fun multiBrowseKeylineList(
 
     var resolvedSmallCounts = smallCounts
     val targetLargeSize = min(preferredItemSize, carouselMainAxisSize)
-    val targetSmallSize = (targetLargeSize / 3f).coerceIn(minSmallItemSize, maxSmallItemSize)
+    val targetSmallSize = (targetLargeSize / 3f).coerceIn(minOf(minSmallItemSize, maxSmallItemSize), maxOf(minSmallItemSize, maxSmallItemSize))
     val targetMediumSize = (targetLargeSize + targetSmallSize) / 2f
 
     if (carouselMainAxisSize < minSmallItemSize * 2) resolvedSmallCounts = intArrayOf(0)
