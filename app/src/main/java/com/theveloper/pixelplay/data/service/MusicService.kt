@@ -3,10 +3,15 @@ package com.theveloper.pixelplay.data.service
 import android.app.AlarmManager
 import android.app.ForegroundServiceStartNotAllowedException
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Bitmap
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -141,6 +146,13 @@ class MusicService : MediaLibraryService() {
     private var castSessionManagerListener: SessionManagerListener<CastSession>? = null
     private var castRemoteClientCallback: RemoteMediaClient.Callback? = null
     private var observedCastSession: CastSession? = null
+    private val audioManager by lazy { getSystemService(Context.AUDIO_SERVICE) as AudioManager }
+    private var noisyAudioReceiver: BroadcastReceiver? = null
+    private var headsetAudioDeviceCallback: AudioDeviceCallback? = null
+    private var wasHeadsetConnected = false
+    private var autoResumeOnHeadsetConnect = false
+    private var pausedForHeadsetDisconnect = false
+    private var pendingHeadsetPause = false
 
     companion object {
         private const val TAG = "MusicService_PixelPlay"
@@ -218,6 +230,7 @@ class MusicService : MediaLibraryService() {
 
         controller.initialize()
         initializeCastWearSync()
+        registerAudioRouteMonitoring()
 
         // Restore equalizer state from preferences and attach to audio session.
         // This ensures the equalizer is active even before the user opens the EQ screen.
@@ -255,6 +268,12 @@ class MusicService : MediaLibraryService() {
         serviceScope.launch {
             userPreferencesRepository.keepPlayingInBackgroundFlow.collect { enabled ->
                 keepPlayingInBackground = enabled
+            }
+        }
+
+        serviceScope.launch {
+            userPreferencesRepository.autoResumeOnHeadsetConnectFlow.collect { enabled ->
+                autoResumeOnHeadsetConnect = enabled
             }
         }
 
@@ -836,12 +855,27 @@ class MusicService : MediaLibraryService() {
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
+            if (isPlaying) {
+                pausedForHeadsetDisconnect = false
+                pendingHeadsetPause = false
+            }
             val player = engine.masterPlayer
             Timber.tag(TAG).d("onIsPlayingChanged: $isPlaying. Duration: ${player.duration}, Seekable: ${player.isCurrentMediaItemSeekable}")
             // Push state immediately so the watch can foreground PixelPlay before
             // system media surfaces take over.
             requestWidgetFullUpdate(force = true)
             mediaSession?.let { refreshMediaSessionUi(it) }
+        }
+
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            if (playWhenReady) {
+                pausedForHeadsetDisconnect = false
+                pendingHeadsetPause = false
+                return
+            }
+            val noisyPause = reason == Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_BECOMING_NOISY
+            pausedForHeadsetDisconnect = noisyPause || pendingHeadsetPause
+            pendingHeadsetPause = false
         }
         
         override fun onAvailableCommandsChanged(availableCommands: Player.Commands) {
@@ -1082,6 +1116,121 @@ class MusicService : MediaLibraryService() {
         castSessionManager = null
     }
 
+    private fun registerAudioRouteMonitoring() {
+        if (noisyAudioReceiver != null || headsetAudioDeviceCallback != null) return
+
+        wasHeadsetConnected = hasConnectedHeadsetOutput()
+
+        noisyAudioReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
+                    pauseForHeadsetDisconnect("AUDIO_BECOMING_NOISY")
+                    wasHeadsetConnected = hasConnectedHeadsetOutput()
+                }
+            }
+        }.also { receiver ->
+            val filter = IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(receiver, filter)
+            }
+        }
+
+        headsetAudioDeviceCallback = object : AudioDeviceCallback() {
+            override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
+                handleHeadsetRouteChanged("devices_added")
+            }
+
+            override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
+                handleHeadsetRouteChanged("devices_removed")
+            }
+        }.also { callback ->
+            audioManager.registerAudioDeviceCallback(callback, null)
+        }
+    }
+
+    private fun unregisterAudioRouteMonitoring() {
+        noisyAudioReceiver?.let { receiver ->
+            runCatching { unregisterReceiver(receiver) }
+                .onFailure { e -> Timber.tag(TAG).w(e, "Failed to unregister noisy audio receiver") }
+        }
+        noisyAudioReceiver = null
+
+        headsetAudioDeviceCallback?.let { callback ->
+            runCatching { audioManager.unregisterAudioDeviceCallback(callback) }
+                .onFailure { e -> Timber.tag(TAG).w(e, "Failed to unregister audio device callback") }
+        }
+        headsetAudioDeviceCallback = null
+    }
+
+    private fun handleHeadsetRouteChanged(source: String) {
+        val headsetConnectedNow = hasConnectedHeadsetOutput()
+        val previouslyConnected = wasHeadsetConnected
+        wasHeadsetConnected = headsetConnectedNow
+
+        if (previouslyConnected && !headsetConnectedNow) {
+            pauseForHeadsetDisconnect(source)
+            return
+        }
+        if (!previouslyConnected && headsetConnectedNow) {
+            maybeResumeAfterHeadsetReconnect(source)
+        }
+    }
+
+    private fun pauseForHeadsetDisconnect(source: String) {
+        if (isCastSessionConnected()) return
+        val player = mediaSession?.player ?: engine.masterPlayer
+        if (!player.isPlaying) return
+
+        pendingHeadsetPause = true
+        pausedForHeadsetDisconnect = true
+        player.pause()
+        Timber.tag(TAG).d("Paused playback after headset disconnect (%s)", source)
+    }
+
+    private fun maybeResumeAfterHeadsetReconnect(source: String) {
+        if (!autoResumeOnHeadsetConnect || !pausedForHeadsetDisconnect) return
+        if (isCastSessionConnected()) return
+
+        val player = mediaSession?.player ?: engine.masterPlayer
+        val canResume = !player.isPlaying &&
+            player.mediaItemCount > 0 &&
+            player.playbackState != Player.STATE_ENDED
+        if (!canResume) return
+
+        player.play()
+        pausedForHeadsetDisconnect = false
+        pendingHeadsetPause = false
+        Timber.tag(TAG).d("Resumed playback after headset reconnect (%s)", source)
+    }
+
+    private fun hasConnectedHeadsetOutput(): Boolean {
+        val outputDevices = runCatching {
+            audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+        }.getOrElse { emptyArray() }
+        return outputDevices.any { isHeadsetOutputType(it.type) }
+    }
+
+    private fun isHeadsetOutputType(deviceType: Int): Boolean {
+        return when (deviceType) {
+            AudioDeviceInfo.TYPE_WIRED_HEADSET,
+            AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+            AudioDeviceInfo.TYPE_USB_HEADSET,
+            AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+            AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+            AudioDeviceInfo.TYPE_BLE_HEADSET,
+            AudioDeviceInfo.TYPE_BLE_SPEAKER,
+            AudioDeviceInfo.TYPE_BLE_BROADCAST -> true
+            else -> false
+        }
+    }
+
+    private fun isCastSessionConnected(): Boolean {
+        return observedCastSession?.isConnected == true ||
+            castSessionManager?.currentCastSession?.isConnected == true
+    }
+
     override fun onTaskRemoved(rootIntent: Intent?) {
         val player = mediaSession?.player
         val allowBackground = keepPlayingInBackground
@@ -1108,6 +1257,7 @@ class MusicService : MediaLibraryService() {
 
     override fun onDestroy() {
         stopCastWearSync()
+        unregisterAudioRouteMonitoring()
         wearStatePublisher.clearState()
         replayGainJob?.cancel()
 

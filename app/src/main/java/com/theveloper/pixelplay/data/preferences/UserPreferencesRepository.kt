@@ -124,6 +124,7 @@ constructor(
         val IS_SHUFFLE_ON = booleanPreferencesKey("is_shuffle_on")
         val PERSISTENT_SHUFFLE_ENABLED = booleanPreferencesKey("persistent_shuffle_enabled")
         val DISABLE_CAST_AUTOPLAY = booleanPreferencesKey("disable_cast_autoplay")
+        val AUTO_RESUME_ON_HEADSET_CONNECT = booleanPreferencesKey("auto_resume_on_headset_connect")
         val SHOW_QUEUE_HISTORY = booleanPreferencesKey("show_queue_history")
         val FULL_PLAYER_SHOW_FILE_INFO = booleanPreferencesKey("full_player_show_file_info")
         val FULL_PLAYER_DELAY_ALL = booleanPreferencesKey("full_player_delay_all")
@@ -802,6 +803,11 @@ constructor(
     val disableCastAutoplayFlow: Flow<Boolean> =
             dataStore.data.map { preferences ->
                 preferences[PreferencesKeys.DISABLE_CAST_AUTOPLAY] ?: false
+            }
+
+    val autoResumeOnHeadsetConnectFlow: Flow<Boolean> =
+            dataStore.data.map { preferences ->
+                preferences[PreferencesKeys.AUTO_RESUME_ON_HEADSET_CONNECT] ?: false
             }
 
     val showQueueHistoryFlow: Flow<Boolean> =
@@ -1508,6 +1514,12 @@ constructor(
     suspend fun setDisableCastAutoplay(disabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.DISABLE_CAST_AUTOPLAY] = disabled
+        }
+    }
+
+    suspend fun setAutoResumeOnHeadsetConnect(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.AUTO_RESUME_ON_HEADSET_CONNECT] = enabled
         }
     }
 

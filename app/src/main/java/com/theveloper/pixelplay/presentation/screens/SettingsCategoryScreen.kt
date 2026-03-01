@@ -683,12 +683,23 @@ fun SettingsCategoryScreen(
                                 )
                             }
 
+                            SettingsSubsection(title = "Headset") {
+                                SwitchSettingItem(
+                                    title = "Auto-resume on headset connect",
+                                    subtitle = "Resume playback when wired/Bluetooth earphones reconnect after an unplug pause.",
+                                    checked = uiState.autoResumeOnHeadsetConnect,
+                                    onCheckedChange = { settingsViewModel.setAutoResumeOnHeadsetConnect(it) },
+                                    leadingIcon = { Icon(painterResource(R.drawable.rounded_headphones_24), null, tint = MaterialTheme.colorScheme.secondary) }
+                                )
+                            }
+
                             SettingsSubsection(title = "Volume Normalization (ReplayGain)") {
                                 SwitchSettingItem(
                                     title = "Enable ReplayGain",
                                     subtitle = "Normalize volume levels using ReplayGain metadata from audio files.",
                                     checked = uiState.replayGainEnabled,
-                                    onCheckedChange = { settingsViewModel.setReplayGainEnabled(it) }
+                                    onCheckedChange = { settingsViewModel.setReplayGainEnabled(it) },
+                                    leadingIcon = { Icon(painterResource(R.drawable.rounded_volume_up_24), null, tint = MaterialTheme.colorScheme.secondary) }
                                 )
                                 AnimatedVisibility(
                                     visible = uiState.replayGainEnabled,

@@ -55,6 +55,7 @@ data class SettingsUiState(
     val launchTab: String = LaunchTab.HOME,
     val keepPlayingInBackground: Boolean = true,
     val disableCastAutoplay: Boolean = false,
+    val autoResumeOnHeadsetConnect: Boolean = false,
     val showQueueHistory: Boolean = true,
     val isCrossfadeEnabled: Boolean = false,
     val crossfadeDuration: Int = 2000,
@@ -129,6 +130,7 @@ private sealed interface SettingsUiUpdate {
     data class Group2(
         val keepPlayingInBackground: Boolean,
         val disableCastAutoplay: Boolean,
+        val autoResumeOnHeadsetConnect: Boolean,
         val showQueueHistory: Boolean,
         val isCrossfadeEnabled: Boolean,
         val crossfadeDuration: Int,
@@ -288,6 +290,7 @@ class SettingsViewModel @Inject constructor(
             combine<Any?, SettingsUiUpdate.Group2>(
                 userPreferencesRepository.keepPlayingInBackgroundFlow,
                 userPreferencesRepository.disableCastAutoplayFlow,
+                userPreferencesRepository.autoResumeOnHeadsetConnectFlow,
                 userPreferencesRepository.showQueueHistoryFlow,
                 userPreferencesRepository.isCrossfadeEnabledFlow,
                 userPreferencesRepository.crossfadeDurationFlow,
@@ -303,23 +306,25 @@ class SettingsViewModel @Inject constructor(
                 SettingsUiUpdate.Group2(
                     keepPlayingInBackground = values[0] as Boolean,
                     disableCastAutoplay = values[1] as Boolean,
-                    showQueueHistory = values[2] as Boolean,
-                    isCrossfadeEnabled = values[3] as Boolean,
-                    crossfadeDuration = values[4] as Int,
-                    persistentShuffleEnabled = values[5] as Boolean,
-                    folderBackGestureNavigation = values[6] as Boolean,
-                    lyricsSourcePreference = values[7] as LyricsSourcePreference,
-                    autoScanLrcFiles = values[8] as Boolean,
-                    blockedDirectories = @Suppress("UNCHECKED_CAST") (values[9] as Set<String>),
-                    hapticsEnabled = values[10] as Boolean,
-                    immersiveLyricsEnabled = values[11] as Boolean,
-                    immersiveLyricsTimeout = values[12] as Long
+                    autoResumeOnHeadsetConnect = values[2] as Boolean,
+                    showQueueHistory = values[3] as Boolean,
+                    isCrossfadeEnabled = values[4] as Boolean,
+                    crossfadeDuration = values[5] as Int,
+                    persistentShuffleEnabled = values[6] as Boolean,
+                    folderBackGestureNavigation = values[7] as Boolean,
+                    lyricsSourcePreference = values[8] as LyricsSourcePreference,
+                    autoScanLrcFiles = values[9] as Boolean,
+                    blockedDirectories = @Suppress("UNCHECKED_CAST") (values[10] as Set<String>),
+                    hapticsEnabled = values[11] as Boolean,
+                    immersiveLyricsEnabled = values[12] as Boolean,
+                    immersiveLyricsTimeout = values[13] as Long
                 )
             }.collect { update ->
                 _uiState.update { state ->
                     state.copy(
                         keepPlayingInBackground = update.keepPlayingInBackground,
                         disableCastAutoplay = update.disableCastAutoplay,
+                        autoResumeOnHeadsetConnect = update.autoResumeOnHeadsetConnect,
                         showQueueHistory = update.showQueueHistory,
                         isCrossfadeEnabled = update.isCrossfadeEnabled,
                         crossfadeDuration = update.crossfadeDuration,
@@ -519,6 +524,12 @@ class SettingsViewModel @Inject constructor(
     fun setDisableCastAutoplay(disabled: Boolean) {
         viewModelScope.launch {
             userPreferencesRepository.setDisableCastAutoplay(disabled)
+        }
+    }
+
+    fun setAutoResumeOnHeadsetConnect(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setAutoResumeOnHeadsetConnect(enabled)
         }
     }
 
