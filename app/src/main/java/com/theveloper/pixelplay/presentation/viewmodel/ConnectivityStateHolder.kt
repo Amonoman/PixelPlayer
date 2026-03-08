@@ -295,9 +295,10 @@ class ConnectivityStateHolder @Inject constructor(
             return
         }
 
+        val localDeviceNames = resolveLocalBluetoothDeviceNames()
         val connectedDevices = collectConnectedBluetoothDevices()
         val availableDevices = discoveredBluetoothAudioDevices.values
-            .map(::sanitizeBluetoothAudioDeviceState)
+            .map { sanitizeBluetoothAudioDeviceState(it, localDeviceNames) }
             .filterNotNull()
         val connectedDeviceKeys = connectedDevices.mapTo(mutableSetOf()) { it.uniqueKey() }
 
@@ -325,11 +326,13 @@ class ConnectivityStateHolder @Inject constructor(
 
     @SuppressLint("MissingPermission")
     private fun safeGetConnectedDevices(profile: Int): List<BluetoothDevice> {
-        return runCatching { bluetoothManager.getConnectedDevices(profile) }.getOrElse { emptyList() }
+        if (!hasBluetoothConnectPermission()) return emptyList()
+        return safeBluetoothCall(emptyList()) { bluetoothManager.getConnectedDevices(profile) }
     }
 
     private fun collectConnectedBluetoothDevices(): List<BluetoothAudioDeviceState> {
         val connectedDevices = linkedMapOf<String, BluetoothAudioDeviceState>()
+        val localDeviceNames = resolveLocalBluetoothDeviceNames()
         val audioDevices = audioManager.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS)
 
         for (device in audioDevices) {
@@ -338,7 +341,7 @@ class ConnectivityStateHolder @Inject constructor(
                 device.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO
             ) {
                 val name = device.productName?.toString()?.trim().orEmpty()
-                if (name.isNotEmpty() && !isOwnBluetoothDeviceName(name)) {
+                if (name.isNotEmpty() && !isOwnBluetoothDeviceName(name, localDeviceNames)) {
                     val address = device.address?.trim().orEmpty().takeIf { it.isNotEmpty() }
                     val key = bluetoothDeviceKey(address, name)
                     connectedDevices[key] = BluetoothAudioDeviceState(
@@ -382,9 +385,12 @@ class ConnectivityStateHolder @Inject constructor(
         runCatching { adapter.startDiscovery() }
     }
 
-    private fun sanitizeBluetoothAudioDeviceState(deviceState: BluetoothAudioDeviceState): BluetoothAudioDeviceState? {
+    private fun sanitizeBluetoothAudioDeviceState(
+        deviceState: BluetoothAudioDeviceState,
+        localDeviceNames: Set<String> = resolveLocalBluetoothDeviceNames()
+    ): BluetoothAudioDeviceState? {
         val normalizedName = deviceState.name.trim()
-        if (normalizedName.isEmpty() || isOwnBluetoothDeviceName(normalizedName)) return null
+        if (normalizedName.isEmpty() || isOwnBluetoothDeviceName(normalizedName, localDeviceNames)) return null
 
         return deviceState.copy(
             name = normalizedName,
@@ -393,14 +399,12 @@ class ConnectivityStateHolder @Inject constructor(
         )
     }
 
-    private fun isOwnBluetoothDeviceName(name: String): Boolean {
+    private fun isOwnBluetoothDeviceName(
+        name: String,
+        localDeviceNames: Set<String> = resolveLocalBluetoothDeviceNames()
+    ): Boolean {
         val normalizedName = name.trim()
         if (normalizedName.isEmpty()) return true
-
-        val localDeviceNames = buildSet {
-            resolveLocalBluetoothAdapterName()?.let { add(it) }
-            Build.MODEL.trim().takeIf { it.isNotEmpty() }?.let { add(it) }
-        }
 
         return localDeviceNames.any { it.equals(normalizedName, ignoreCase = true) }
     }
@@ -409,15 +413,21 @@ class ConnectivityStateHolder @Inject constructor(
         _isBluetoothEnabled.value = if (!hasBluetoothConnectPermission()) {
             false
         } else {
-            runCatching { bluetoothAdapter?.isEnabled ?: false }.getOrDefault(false)
+            safeBluetoothCall(false) { bluetoothAdapter?.isEnabled ?: false }
         }
     }
 
     private fun resolveLocalBluetoothAdapterName(): String? {
         if (!hasBluetoothConnectPermission()) return null
-        return runCatching { bluetoothAdapter?.name?.trim().orEmpty() }
-            .getOrDefault("")
+        return safeBluetoothCall("") { bluetoothAdapter?.name?.trim().orEmpty() }
             .takeIf { it.isNotEmpty() }
+    }
+
+    private fun resolveLocalBluetoothDeviceNames(): Set<String> {
+        return buildSet {
+            resolveLocalBluetoothAdapterName()?.let { add(it) }
+            Build.MODEL.trim().takeIf { it.isNotEmpty() }?.let { add(it) }
+        }
     }
 
     private fun hasBluetoothConnectPermission(): Boolean {
@@ -461,13 +471,13 @@ class ConnectivityStateHolder @Inject constructor(
     private fun BluetoothDevice.toBluetoothAudioDeviceState(isConnected: Boolean): BluetoothAudioDeviceState? {
         if (!hasBluetoothConnectPermission()) return null
 
-        val deviceName = runCatching { name?.trim().orEmpty() }.getOrDefault("")
-        if (deviceName.isEmpty() || isOwnBluetoothDeviceName(deviceName)) return null
+        val deviceName = safeBluetoothCall("") { name?.trim().orEmpty() }
+        val localDeviceNames = resolveLocalBluetoothDeviceNames()
+        if (deviceName.isEmpty() || isOwnBluetoothDeviceName(deviceName, localDeviceNames)) return null
 
         return BluetoothAudioDeviceState(
             name = deviceName,
-            address = runCatching { address?.trim().orEmpty() }
-                .getOrDefault("")
+            address = safeBluetoothCall("") { address?.trim().orEmpty() }
                 .takeIf { it.isNotEmpty() },
             isConnected = isConnected,
             batteryPercent = resolveBatteryPercent(this)
@@ -492,9 +502,13 @@ class ConnectivityStateHolder @Inject constructor(
 
     private fun BluetoothDevice.isAudioOutputCandidate(): Boolean {
         if (!hasBluetoothConnectPermission()) return false
-        val deviceClass = bluetoothClass ?: return false
+        val deviceClass = safeBluetoothCall<BluetoothClass?>(null) { bluetoothClass } ?: return false
         return deviceClass.majorDeviceClass == BluetoothClass.Device.Major.AUDIO_VIDEO ||
             deviceClass.hasService(BluetoothClass.Service.RENDER)
+    }
+
+    private inline fun <T> safeBluetoothCall(defaultValue: T, block: () -> T): T {
+        return runCatching(block).getOrDefault(defaultValue)
     }
 
     @Suppress("DEPRECATION")

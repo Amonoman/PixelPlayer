@@ -717,6 +717,16 @@ fun SettingsCategoryScreen(
                                 )
                             }
 
+                            SettingsSubsection(title = "Headphones") {
+                                SwitchSettingItem(
+                                    title = "Resume when headphones reconnect",
+                                    subtitle = "If playback paused because headphones were removed, resume automatically when they connect again.",
+                                    checked = uiState.resumeOnHeadsetReconnect,
+                                    onCheckedChange = { settingsViewModel.setResumeOnHeadsetReconnect(it) },
+                                    leadingIcon = { Icon(painterResource(R.drawable.rounded_headphones_24), null, tint = MaterialTheme.colorScheme.secondary) }
+                                )
+                            }
+
                             SettingsSubsection(title = "Queue and Transitions") {
                                 ThemeSelectorItem(
                                     label = "Crossfade",

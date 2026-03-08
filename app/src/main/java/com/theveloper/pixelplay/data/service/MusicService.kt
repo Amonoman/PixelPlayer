@@ -6,6 +6,9 @@ import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -150,6 +153,13 @@ class MusicService : MediaLibraryService() {
     private var observedCastSession: CastSession? = null
     private var playbackSnapshotPersistJob: Job? = null
     private var isRestoringPlaybackSnapshot = false
+    private val audioManager by lazy {
+        getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    }
+    private var headsetReconnectCallback: AudioDeviceCallback? = null
+    private var shouldResumeAfterHeadsetReconnect = false
+    private var lastNoisyPauseRealtimeMs = 0L
+    private var resumeOnHeadsetReconnectEnabled = false
 
     companion object {
         private const val TAG = "MusicService_PixelPlay"
@@ -185,6 +195,7 @@ class MusicService : MediaLibraryService() {
         private const val MAX_WIDGET_ARTWORK_BYTES = 2 * 1024 * 1024
         private const val DEFAULT_STREAM_BUFFER_SIZE = 8 * 1024
         private const val WIDGET_ART_FAILURE_RETRY_MS = 30_000L
+        private const val HEADSET_RECONNECT_RESUME_WINDOW_MS = 15_000L
     }
 
     private val playerSwapListener: (Player) -> Unit = { newPlayer ->
@@ -233,6 +244,7 @@ class MusicService : MediaLibraryService() {
 
         controller.initialize()
         initializeCastWearSync()
+        registerHeadsetReconnectMonitor()
 
         // Restore equalizer state from preferences and attach to audio session.
         // This ensures the equalizer is active even before the user opens the EQ screen.
@@ -270,6 +282,15 @@ class MusicService : MediaLibraryService() {
         serviceScope.launch {
             userPreferencesRepository.keepPlayingInBackgroundFlow.collect { enabled ->
                 keepPlayingInBackground = enabled
+            }
+        }
+
+        serviceScope.launch {
+            userPreferencesRepository.resumeOnHeadsetReconnectFlow.collect { enabled ->
+                resumeOnHeadsetReconnectEnabled = enabled
+                if (!enabled) {
+                    clearHeadsetReconnectResume()
+                }
             }
         }
 
@@ -867,6 +888,19 @@ class MusicService : MediaLibraryService() {
             mediaSession?.let { refreshMediaSessionUi(it) }
             schedulePlaybackSnapshotPersist()
         }
+
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            when {
+                playWhenReady -> clearHeadsetReconnectResume()
+                !resumeOnHeadsetReconnectEnabled -> clearHeadsetReconnectResume()
+                reason == Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_BECOMING_NOISY -> {
+                    shouldResumeAfterHeadsetReconnect = true
+                    lastNoisyPauseRealtimeMs = SystemClock.elapsedRealtime()
+                    Timber.tag(TAG).d("Marked playback for headset reconnect resume")
+                }
+                else -> clearHeadsetReconnectResume()
+            }
+        }
         
         override fun onAvailableCommandsChanged(availableCommands: Player.Commands) {
              val canSeek = availableCommands.contains(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
@@ -1144,6 +1178,7 @@ class MusicService : MediaLibraryService() {
     override fun onDestroy() {
         playbackSnapshotPersistJob?.cancel()
         stopCastWearSync()
+        unregisterHeadsetReconnectMonitor()
         wearStatePublisher.clearState()
         replayGainJob?.cancel()
 
@@ -1160,6 +1195,78 @@ class MusicService : MediaLibraryService() {
         Thread.currentThread().setUncaughtExceptionHandler(previousMainThreadExceptionHandler)
         previousMainThreadExceptionHandler = null
         super.onDestroy()
+    }
+
+    private fun registerHeadsetReconnectMonitor() {
+        val callback = object : AudioDeviceCallback() {
+            override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
+                if (!addedDevices.any(::isReconnectableHeadsetOutput)) return
+                maybeResumeAfterHeadsetReconnect()
+            }
+        }
+
+        audioManager.registerAudioDeviceCallback(callback, null)
+        headsetReconnectCallback = callback
+    }
+
+    private fun unregisterHeadsetReconnectMonitor() {
+        headsetReconnectCallback?.let { callback ->
+            runCatching { audioManager.unregisterAudioDeviceCallback(callback) }
+        }
+        headsetReconnectCallback = null
+        clearHeadsetReconnectResume()
+    }
+
+    private fun maybeResumeAfterHeadsetReconnect() {
+        if (!resumeOnHeadsetReconnectEnabled || !shouldResumeAfterHeadsetReconnect) return
+
+        val elapsedSinceNoisyPause = SystemClock.elapsedRealtime() - lastNoisyPauseRealtimeMs
+        if (elapsedSinceNoisyPause > HEADSET_RECONNECT_RESUME_WINDOW_MS) {
+            clearHeadsetReconnectResume()
+            return
+        }
+
+        if (!hasReconnectableHeadsetOutput()) {
+            return
+        }
+
+        val player = engine.masterPlayer
+        if (
+            player.currentMediaItem == null ||
+            player.playWhenReady ||
+            player.playbackState == Player.STATE_IDLE ||
+            player.playbackState == Player.STATE_ENDED
+        ) {
+            clearHeadsetReconnectResume()
+            return
+        }
+
+        Timber.tag(TAG).d("Resuming playback after headset reconnect")
+        clearHeadsetReconnectResume()
+        player.play()
+    }
+
+    private fun hasReconnectableHeadsetOutput(): Boolean {
+        return audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+            .any(::isReconnectableHeadsetOutput)
+    }
+
+    private fun isReconnectableHeadsetOutput(device: AudioDeviceInfo): Boolean {
+        return when (device.type) {
+            AudioDeviceInfo.TYPE_WIRED_HEADSET,
+            AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+            AudioDeviceInfo.TYPE_USB_HEADSET,
+            AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+            AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+            AudioDeviceInfo.TYPE_BLE_HEADSET,
+            AudioDeviceInfo.TYPE_BLE_SPEAKER -> true
+            else -> false
+        }
+    }
+
+    private fun clearHeadsetReconnectResume() {
+        shouldResumeAfterHeadsetReconnect = false
+        lastNoisyPauseRealtimeMs = 0L
     }
 
     private fun schedulePlaybackSnapshotPersist(immediate: Boolean = false) {
