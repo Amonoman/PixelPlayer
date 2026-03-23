@@ -1,4 +1,4 @@
-name: Build Phone APK (Debug)
+name: Build Phone APK (Release)
 
 on:
   push:
@@ -26,11 +26,10 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Phone debug APK
-        run: ./gradlew :app:assembleDebug
+        run: ./gradlew :app:assembleRelease
 
       - name: Upload Phone APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PixelPlay-phone-only-debug
-          path: app/build/outputs/apk/debug/*.apk
-          
+          name: PixelPlay-phone-only-release
+          path: app/build/outputs/apk/release/*.apk
