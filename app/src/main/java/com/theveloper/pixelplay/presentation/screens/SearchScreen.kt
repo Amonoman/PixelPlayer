@@ -440,7 +440,7 @@ fun SearchScreen(
                     navController.navigateSafely(Screen.ArtistDetail.createRoute(currentSong.artistId))
                     showSongInfoBottomSheet = false
                 },
-                onEditSong = { newTitle, newArtist, newAlbum, newGenre, newLyrics, newTrackNumber, coverArtUpdate ->
+                onEditSong = { newTitle, newArtist, newAlbum, newGenre, newLyrics, newTrackNumber, newDiscNumber, coverArtUpdate ->
                     playerViewModel.editSongMetadata(
                         currentSong,
                         newTitle,
@@ -449,6 +449,7 @@ fun SearchScreen(
                         newGenre,
                         newLyrics,
                         newTrackNumber,
+                        newDiscNumber,
                         coverArtUpdate
                     )
                 },

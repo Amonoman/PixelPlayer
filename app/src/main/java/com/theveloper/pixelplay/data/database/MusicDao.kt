@@ -28,6 +28,7 @@ private const val SONG_DETAIL_PROJECTION = """
     songs.is_favorite AS is_favorite,
     COALESCE(song_lyrics.content, songs.lyrics) AS lyrics,
     songs.track_number AS track_number,
+    songs.disc_number AS disc_number,
     songs.year AS year,
     songs.date_added AS date_added,
     songs.mime_type AS mime_type,
@@ -333,7 +334,7 @@ interface MusicDao {
         applyDirectoryFilter: Boolean
     ): Flow<List<SongEntity>>
 
-    @Query("SELECT * FROM songs WHERE album_id = :albumId ORDER BY title ASC")
+    @Query("SELECT * FROM songs WHERE album_id = :albumId ORDER BY disc_number ASC, track_number ASC")
     fun getSongsByAlbumId(albumId: Long): Flow<List<SongEntity>>
 
     @Query("SELECT * FROM songs WHERE artist_id = :artistId ORDER BY title ASC")
@@ -1004,14 +1005,15 @@ interface MusicDao {
         return newStatus
     }
 
-    @Query("UPDATE songs SET title = :title, artist_name = :artist, album_name = :album, genre = :genre, track_number = :trackNumber WHERE id = :songId")
+    @Query("UPDATE songs SET title = :title, artist_name = :artist, album_name = :album, genre = :genre, track_number = :trackNumber, disc_number = :discNumber WHERE id = :songId")
     suspend fun updateSongMetadata(
         songId: Long,
         title: String,
         artist: String,
         album: String,
         genre: String?,
-        trackNumber: Int
+        trackNumber: Int,
+        discNumber: Int?
     )
 
     @Query("UPDATE songs SET album_art_uri_string = :albumArtUri WHERE id = :songId")

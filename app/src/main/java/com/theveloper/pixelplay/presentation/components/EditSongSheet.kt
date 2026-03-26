@@ -93,7 +93,7 @@ fun EditSongSheet(
     visible: Boolean,
     song: Song,
     onDismiss: () -> Unit,
-    onSave: (title: String, artist: String, album: String, genre: String, lyrics: String, trackNumber: Int, coverArtUpdate: CoverArtUpdate?) -> Unit,
+    onSave: (title: String, artist: String, album: String, genre: String, lyrics: String, trackNumber: Int, discNumber: Int?, coverArtUpdate: CoverArtUpdate?) -> Unit,
     generateAiMetadata: suspend (List<String>) -> Result<com.theveloper.pixelplay.data.ai.SongMetadata>
 ) {
     val transitionState = remember { MutableTransitionState(false) }
@@ -128,7 +128,7 @@ fun EditSongSheet(
 private fun EditSongContent(
     song: Song,
     onDismiss: () -> Unit,
-    onSave: (title: String, artist: String, album: String, genre: String, lyrics: String, trackNumber: Int, coverArtUpdate: CoverArtUpdate?) -> Unit,
+    onSave: (title: String, artist: String, album: String, genre: String, lyrics: String, trackNumber: Int, discNumber: Int?, coverArtUpdate: CoverArtUpdate?) -> Unit,
     generateAiMetadata: suspend (List<String>) -> Result<com.theveloper.pixelplay.data.ai.SongMetadata>
 ) {
     var title by remember { mutableStateOf(song.title) }
@@ -137,6 +137,7 @@ private fun EditSongContent(
     var genre by remember { mutableStateOf(song.genre ?: "") }
     var lyrics by remember { mutableStateOf(song.lyrics ?: "") }
     var trackNumber by remember { mutableStateOf(song.trackNumber.toString()) }
+    var discNumber by remember { mutableStateOf(song.discNumber?.toString() ?: "") }
     var coverArtPreview by remember { mutableStateOf<ImageBitmap?>(null) }
     var editedCoverArt by remember { mutableStateOf<CoverArtUpdate?>(null) }
     var showCoverArtCropper by remember { mutableStateOf(false) }
@@ -161,6 +162,7 @@ private fun EditSongContent(
         genre = song.genre ?: ""
         lyrics = song.lyrics ?: ""
         trackNumber = song.trackNumber.toString()
+        discNumber = song.discNumber?.toString() ?: ""
         coverArtPreview = null
         editedCoverArt = null
 
@@ -416,6 +418,30 @@ private fun EditSongContent(
                 }
             }
 
+            item {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        modifier = Modifier.padding(start = 4.dp),
+                        text = "Disc Number",
+                        color = MaterialTheme.colorScheme.secondary,
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    OutlinedTextField(
+                        value = discNumber,
+                        shape = textFieldShape,
+                        colors = textFieldColors,
+                        onValueChange = { discNumber = it },
+                        placeholder = { Text("Disc Number") },
+                        leadingIcon = { Icon(Icons.Rounded.FormatListNumbered, tint = MaterialTheme.colorScheme.secondary, contentDescription = "Disc Number Icon") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                }
+            }
+
             // --- Campo de Artista ---
             item {
                 Column(
@@ -566,6 +592,7 @@ private fun EditSongContent(
                         Button(
                             onClick = {
                                 val resolvedTrackNumber = trackNumber.toIntOrNull() ?: song.trackNumber
+                                val resolvedDiscNumber = discNumber.toIntOrNull()
                                 onSave(
                                     title.trim(),
                                     artist.trim(),
@@ -573,6 +600,7 @@ private fun EditSongContent(
                                     genre.trim(),
                                     lyrics,
                                     resolvedTrackNumber,
+                                    resolvedDiscNumber,
                                     editedCoverArt
                                 )
                             },

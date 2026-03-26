@@ -30,7 +30,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         NavidromeSongEntity::class,
         NavidromePlaylistEntity::class
     ],
-    version = 30, // Fix Navidrome playlist_id affinity drift
+    version = 31, // Add disc_number to songs table
 
     exportSchema = true
 )
@@ -577,6 +577,7 @@ abstract class PixelPlayDatabase : RoomDatabase() {
                         is_favorite INTEGER NOT NULL DEFAULT 0,
                         lyrics TEXT DEFAULT null,
                         track_number INTEGER NOT NULL DEFAULT 0,
+                        disc_number INTEGER,
                         year INTEGER NOT NULL DEFAULT 0,
                         date_added INTEGER NOT NULL DEFAULT 0,
                         mime_type TEXT,
@@ -613,6 +614,7 @@ abstract class PixelPlayDatabase : RoomDatabase() {
                 val isFavoriteExpr = columnExpr(columns, "is_favorite", "0")
                 val lyricsExpr = columnExpr(columns, "lyrics", "NULL")
                 val trackNumberExpr = columnExpr(columns, "track_number", "0")
+                val discNumberExpr = columnExpr(columns, "disc_number", "NULL")
                 val yearExpr = columnExpr(columns, "year", "0")
                 val dateAddedExpr = columnExpr(columns, "date_added", "0")
                 val mimeTypeExpr = columnExpr(columns, "mime_type", "NULL")
@@ -640,6 +642,7 @@ abstract class PixelPlayDatabase : RoomDatabase() {
                             is_favorite,
                             lyrics,
                             track_number,
+                            disc_number,
                             year,
                             date_added,
                             mime_type,
@@ -665,6 +668,7 @@ abstract class PixelPlayDatabase : RoomDatabase() {
                             $isFavoriteExpr,
                             $lyricsExpr,
                             $trackNumberExpr,
+                            $discNumberExpr,
                             $yearExpr,
                             $dateAddedExpr,
                             $mimeTypeExpr,
@@ -964,6 +968,15 @@ abstract class PixelPlayDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Add disc_number to songs table.
+         */
+        val MIGRATION_30_31 = object : Migration(30, 31) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE songs ADD COLUMN disc_number INTEGER")
+            }
+        }
+
         private fun recreateNavidromeSongsTable(db: SupportSQLiteDatabase) {
             db.execSQL("DROP TABLE IF EXISTS navidrome_songs_new")
             db.execSQL(
@@ -980,7 +993,7 @@ abstract class PixelPlayDatabase : RoomDatabase() {
                         cover_art_id TEXT,
                         duration INTEGER NOT NULL,
                         track_number INTEGER NOT NULL,
-                        disc_number INTEGER NOT NULL,
+                        disc_number INTEGER,
                         year INTEGER NOT NULL,
                         genre TEXT,
                         bitRate INTEGER,

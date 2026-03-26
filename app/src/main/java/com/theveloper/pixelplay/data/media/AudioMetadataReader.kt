@@ -19,6 +19,7 @@ data class AudioMetadata(
     val lyrics: String?,
     val durationMs: Long?,
     val trackNumber: Int?,
+    val discNumber: Int?,
     val year: Int?,
     val bitrate: Int?,
     val sampleRate: Int?,
@@ -79,6 +80,9 @@ object AudioMetadataReader {
                 val trackString = propertyMap["TRACKNUMBER"]?.firstOrNull()?.takeIf { it.isNotBlank() }
                     ?: propertyMap["TRACK"]?.firstOrNull()?.takeIf { it.isNotBlank() }
                 val trackNumber = trackString?.substringBefore('/')?.toIntOrNull()
+                val discString = propertyMap["DISCNUMBER"]?.firstOrNull()?.takeIf { it.isNotBlank() }
+                    ?: propertyMap["DISC"]?.firstOrNull()?.takeIf { it.isNotBlank() }
+                val discNumber = discString?.substringBefore('/')?.toIntOrNull()
                 val year = propertyMap["DATE"]?.firstOrNull()?.takeIf { it.isNotBlank() }?.take(4)?.toIntOrNull()
                     ?: propertyMap["YEAR"]?.firstOrNull()?.takeIf { it.isNotBlank() }?.toIntOrNull()
 
@@ -115,6 +119,7 @@ object AudioMetadataReader {
                     lyrics = lyrics ?: fallback?.lyrics,
                     durationMs = durationMs ?: fallback?.durationMs,
                     trackNumber = trackNumber ?: fallback?.trackNumber,
+                    discNumber = discNumber ?: fallback?.discNumber,
                     year = year ?: fallback?.year,
                     bitrate = bitrate ?: fallback?.bitrate,
                     sampleRate = sampleRate ?: fallback?.sampleRate,
@@ -151,6 +156,8 @@ object AudioMetadataReader {
             val lyrics = tag?.getFirst(FieldKey.LYRICS)?.takeIf { it.isNotBlank() }
             val trackNumber = tag?.getFirst(FieldKey.TRACK)?.takeIf { it.isNotBlank() }
                 ?.substringBefore('/')?.toIntOrNull()
+            val discNumber = tag?.getFirst(FieldKey.DISC_NO)?.takeIf { it.isNotBlank() }
+                ?.substringBefore('/')?.toIntOrNull()
             val year = tag?.getFirst(FieldKey.YEAR)?.takeIf { it.isNotBlank() }
                 ?.take(4)?.toIntOrNull()
 
@@ -180,6 +187,7 @@ object AudioMetadataReader {
                 lyrics = lyrics,
                 durationMs = durationMs,
                 trackNumber = trackNumber,
+                discNumber = discNumber,
                 year = year,
                 bitrate = bitrate,
                 sampleRate = sampleRate,
