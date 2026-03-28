@@ -3,6 +3,7 @@ package com.theveloper.pixelplay.data.media
 import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
+import android.graphics.BitmapFactory
 import android.media.MediaScannerConnection
 import android.os.ParcelFileDescriptor
 import android.provider.MediaStore
@@ -13,12 +14,16 @@ import com.kyant.taglib.TagLib
 import com.theveloper.pixelplay.data.database.MusicDao
 import com.theveloper.pixelplay.data.database.TelegramDao // Added
 import com.theveloper.pixelplay.data.database.TelegramSongEntity // Added
+import com.theveloper.pixelplay.utils.AlbumArtUtils
 import com.theveloper.pixelplay.utils.LocalArtworkUri
 import kotlinx.coroutines.flow.first // Added
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import org.gagravarr.opus.OpusFile
 import org.gagravarr.opus.OpusTags
+import org.jaudiotagger.audio.AudioFileIO
+import org.jaudiotagger.tag.FieldKey
+import org.jaudiotagger.tag.images.AndroidArtwork
 import timber.log.Timber
 import java.io.File
 import java.io.FileOutputStream
@@ -103,6 +108,7 @@ class SongMetadataEditor(
         newGenre: String,
         newLyrics: String,
         newTrackNumber: Int,
+        newDiscNumber: Int?,
         coverArtUpdate: CoverArtUpdate? = null,
     ): SongMetadataEditResult {
         // Input validation first
@@ -154,9 +160,16 @@ class SongMetadataEditor(
             // Get file extension to determine which library to use
             val finalFilePath = filePath ?: ""
             val extension = finalFilePath.substringAfterLast('.', "").lowercase(Locale.ROOT)
-            val useVorbisJava = extension in opusExtensions
+            
+            // Analyze FLAC properties
+            val flacAnalysis = isProblematicFlacFile(finalFilePath)
+            val isHighResFlac = flacAnalysis is FlacAnalysisResult.Problematic
+            
+            // Determine the primary editor based on format and quality
+            // JAudioTagger handles WAV, OGG (Vorbis), and High-Res FLAC much better than current TagLib logic.
+            val useJAudioTaggerPrimary = extension in setOf("wav", "ogg") || isHighResFlac
 
-            // 2. Update the actual file with ALL metadata (if it exists)
+            // Update the actual file with ALL metadata (if it exists)
             val fileExists = finalFilePath.isNotBlank() && File(finalFilePath).exists()
             
             val fileUpdateSuccess = if (!fileExists) {
@@ -167,13 +180,9 @@ class SongMetadataEditor(
                      Log.e(TAG, "METADATA_EDIT: File does not exist: $finalFilePath")
                      false
                 }
-            } else if (useVorbisJava) {
-                Log.e(TAG, "METADATA_EDIT: Opus/Ogg file detected - skipping file modification to prevent corruption")
-                Log.e(TAG, "METADATA_EDIT: Will update DBs only for: $finalFilePath")
-                true // Skip file modification, proceed to DB update
-            } else {
-                Log.e(TAG, "METADATA_EDIT: Using TagLib for $extension file: $finalFilePath")
-                updateFileMetadataWithTagLib(
+            } else if (useJAudioTaggerPrimary) {
+                Log.d(TAG, "METADATA_EDIT: Using JAudioTagger as primary for $extension file: $finalFilePath")
+                updateFileMetadataWithJAudioTagger(
                     filePath = finalFilePath,
                     newTitle = newTitle,
                     newArtist = newArtist,
@@ -181,8 +190,40 @@ class SongMetadataEditor(
                     newGenre = trimmedGenre,
                     newLyrics = trimmedLyrics,
                     newTrackNumber = newTrackNumber,
+                    newDiscNumber = newDiscNumber,
                     coverArtUpdate = coverArtUpdate
                 )
+            } else {
+                Log.d(TAG, "METADATA_EDIT: Using TagLib for $extension file: $finalFilePath")
+                val tagLibSuccess = updateFileMetadataWithTagLib(
+                    filePath = finalFilePath,
+                    newTitle = newTitle,
+                    newArtist = newArtist,
+                    newAlbum = newAlbum,
+                    newGenre = trimmedGenre,
+                    newLyrics = trimmedLyrics,
+                    newTrackNumber = newTrackNumber,
+                    newDiscNumber = newDiscNumber,
+                    coverArtUpdate = coverArtUpdate
+                )
+                
+                // Fallback to JAudioTagger if TagLib fails for standard formats
+                if (!tagLibSuccess) {
+                    Log.w(TAG, "METADATA_EDIT: TagLib failed for $extension, falling back to JAudioTagger")
+                    updateFileMetadataWithJAudioTagger(
+                        filePath = finalFilePath,
+                        newTitle = newTitle,
+                        newArtist = newArtist,
+                        newAlbum = newAlbum,
+                        newGenre = trimmedGenre,
+                        newLyrics = trimmedLyrics,
+                        newTrackNumber = newTrackNumber,
+                        newDiscNumber = newDiscNumber,
+                        coverArtUpdate = coverArtUpdate
+                    )
+                } else {
+                    true
+                }
             }
 
             if (!fileUpdateSuccess) {
@@ -226,7 +267,8 @@ class SongMetadataEditor(
                     artist = newArtist,
                     album = newAlbum,
                     genre = trimmedGenre,
-                    trackNumber = newTrackNumber
+                    trackNumber = newTrackNumber,
+                    discNumber = newDiscNumber
                 )
     
                 if (!mediaStoreSuccess) {
@@ -244,14 +286,14 @@ class SongMetadataEditor(
                     newArtist,
                     newAlbum,
                     normalizedGenre,
-                    newTrackNumber
+                    newTrackNumber,
+                    newDiscNumber
                 )
 
                 coverArtUpdate?.let {
-                    storedCoverArtUri = LocalArtworkUri.buildSongUri(songId)
-                    storedCoverArtUri?.let { coverUri ->
-                        musicDao.updateSongAlbumArt(songId, coverUri)
-                    }
+                    AlbumArtUtils.clearCacheForSong(context, songId)
+                    storedCoverArtUri = if (it.isDeletion) null else LocalArtworkUri.buildSongUriWithTimestamp(songId)
+                    musicDao.updateSongAlbumArt(songId, storedCoverArtUri)
                 }
             }
 
@@ -378,6 +420,7 @@ class SongMetadataEditor(
         newGenre: String,
         newLyrics: String,
         newTrackNumber: Int,
+        newDiscNumber: Int?,
         coverArtUpdate: CoverArtUpdate? = null
     ): Boolean {
         // Check for problematic FLAC files first
@@ -416,6 +459,11 @@ class SongMetadataEditor(
                 propertyMap.upsertOrRemove("GENRE", newGenre)
                 propertyMap.upsertOrRemove("LYRICS", newLyrics)
                 propertyMap["TRACKNUMBER"] = arrayOf(newTrackNumber.toString())
+                if (newDiscNumber != null && newDiscNumber > 0) {
+                    propertyMap["DISCNUMBER"] = arrayOf(newDiscNumber.toString())
+                } else {
+                    propertyMap.remove("DISCNUMBER")
+                }
                 propertyMap["ALBUMARTIST"] = arrayOf(newArtist)
                 Log.e(TAG, "TAGLIB: Updated property map, saving...")
 
@@ -430,18 +478,29 @@ class SongMetadataEditor(
 
                 // Update cover art if provided
                 coverArtUpdate?.let { update ->
-                    val picture = Picture(
-                        data = update.bytes,
-                        description = "Front Cover",
-                        pictureType = "Front Cover",
-                        mimeType = update.mimeType
-                    )
-                    val pictureFd = fd.dup()
-                    val coverSaved = TagLib.savePictures(pictureFd.detachFd(), arrayOf(picture))
-                    if (!coverSaved) {
-                        Log.w(TAG, "TAGLIB: Failed to save cover art, but metadata was saved")
+                    val pictures = if (update.isDeletion) {
+                        emptyArray<Picture>()
+                    } else if (update.bytes != null) {
+                        arrayOf(
+                            Picture(
+                                data = update.bytes,
+                                description = "Front Cover",
+                                pictureType = "Front Cover",
+                                mimeType = update.mimeType
+                            )
+                        )
                     } else {
-                        Log.d(TAG, "TAGLIB: Successfully embedded cover art")
+                        null
+                    }
+
+                    pictures?.let {
+                        val pictureFd = fd.dup()
+                        val coverSaved = TagLib.savePictures(pictureFd.detachFd(), it)
+                        if (!coverSaved) {
+                            Log.w(TAG, "TAGLIB: Failed to save cover art, but metadata was saved")
+                        } else {
+                            Log.d(TAG, "TAGLIB: Successfully ${if (update.isDeletion) "removed" else "embedded"} cover art")
+                        }
                     }
                 }
             }
@@ -465,6 +524,88 @@ class SongMetadataEditor(
         }
     }
 
+    private fun updateFileMetadataWithJAudioTagger(
+        filePath: String,
+        newTitle: String,
+        newArtist: String,
+        newAlbum: String,
+        newGenre: String,
+        newLyrics: String,
+        newTrackNumber: Int,
+        newDiscNumber: Int?,
+        coverArtUpdate: CoverArtUpdate? = null
+    ): Boolean {
+        val targetFile = File(filePath)
+        
+        return try {
+            // Suppress JAudioTagger's verbose logging
+            java.util.logging.Logger.getLogger("org.jaudiotagger").level = java.util.logging.Level.OFF
+            
+            val audioFile = AudioFileIO.read(targetFile)
+            val tag = audioFile.tag ?: audioFile.createDefaultTag()
+            
+            // Update text fields
+            tag.setField(FieldKey.TITLE, newTitle)
+            tag.setField(FieldKey.ARTIST, newArtist)
+            tag.setField(FieldKey.ALBUM, newAlbum)
+            tag.setField(FieldKey.ALBUM_ARTIST, newArtist)
+            
+            if (newGenre.isNotBlank()) {
+                tag.setField(FieldKey.GENRE, newGenre)
+            } else {
+                tag.deleteField(FieldKey.GENRE)
+            }
+            
+            if (newLyrics.isNotBlank()) {
+                tag.setField(FieldKey.LYRICS, newLyrics)
+            } else {
+                tag.deleteField(FieldKey.LYRICS)
+            }
+            
+            tag.setField(FieldKey.TRACK, newTrackNumber.toString())
+            if (newDiscNumber != null && newDiscNumber > 0) {
+                tag.setField(FieldKey.DISC_NO, newDiscNumber.toString())
+            } else {
+                tag.deleteField(FieldKey.DISC_NO)
+            }
+
+            // Update cover art if provided
+            coverArtUpdate?.let { update ->
+                if (update.isDeletion) {
+                    tag.deleteArtworkField()
+                    Log.d(TAG, "JAUDIOTAGGER: Removed cover art")
+                } else if (update.bytes != null) {
+                    try {
+                        tag.deleteArtworkField()
+                        val artwork = AndroidArtwork()
+                        artwork.binaryData = update.bytes
+                        artwork.mimeType = update.mimeType
+                        artwork.pictureType = 3 // Standard value for "Front Cover"
+                        
+                        // Extract dimensions using Android native BitmapFactory to avoid ImageIO crash
+                        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                        BitmapFactory.decodeByteArray(update.bytes, 0, update.bytes.size, options)
+                        artwork.width = options.outWidth
+                        artwork.height = options.outHeight
+                        
+                        tag.setField(artwork)
+                        Log.d(TAG, "JAUDIOTAGGER: Embedded new cover art (${update.mimeType}, ${options.outWidth}x${options.outHeight})")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "JAUDIOTAGGER: Failed to create artwork from bytes", e)
+                    }
+                }
+            }
+
+            audioFile.commit()
+            Log.d(TAG, "JAUDIOTAGGER: SUCCESS - Updated file metadata: $filePath")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "JAUDIOTAGGER ERROR: ${e.javaClass.simpleName}: ${e.message}")
+            e.printStackTrace()
+            false
+        }
+    }
+
     private fun updateFileMetadataWithVorbisJava(
         filePath: String,
         newTitle: String,
@@ -472,7 +613,8 @@ class SongMetadataEditor(
         newAlbum: String,
         newGenre: String,
         newLyrics: String,
-        newTrackNumber: Int
+        newTrackNumber: Int,
+        newDiscNumber: Int?
     ): Boolean {
         val audioFile = File(filePath)
         val originalExtension = audioFile.extension
@@ -500,6 +642,7 @@ class SongMetadataEditor(
             tags.removeComments("GENRE")
             tags.removeComments("LYRICS")
             tags.removeComments("TRACKNUMBER")
+            tags.removeComments("DISCNUMBER")
             tags.removeComments("ALBUMARTIST")
             
             // Add new values (only if not blank)
@@ -512,6 +655,7 @@ class SongMetadataEditor(
             if (newGenre.isNotBlank()) tags.addComment("GENRE", newGenre)
             if (newLyrics.isNotBlank()) tags.addComment("LYRICS", newLyrics)
             if (newTrackNumber > 0) tags.addComment("TRACKNUMBER", newTrackNumber.toString())
+            if (newDiscNumber != null && newDiscNumber > 0) tags.addComment("DISCNUMBER", newDiscNumber.toString())
             
             Log.e(TAG, "VORBISJAVA: Updated tags: ${tags.allComments}")
             
@@ -582,7 +726,8 @@ class SongMetadataEditor(
         artist: String,
         album: String,
         genre: String,
-        trackNumber: Int
+        trackNumber: Int,
+        discNumber: Int?
     ): Boolean {
         return try {
             val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, songId)
@@ -592,7 +737,8 @@ class SongMetadataEditor(
                 put(MediaStore.Audio.Media.ARTIST, artist)
                 put(MediaStore.Audio.Media.ALBUM, album)
                 put(MediaStore.Audio.Media.GENRE, genre)
-                put(MediaStore.Audio.Media.TRACK, trackNumber)
+                val encodedTrack = ((discNumber ?: 0) * 1000) + trackNumber
+                put(MediaStore.Audio.Media.TRACK, encodedTrack)
                 put(MediaStore.Audio.Media.DATE_MODIFIED, System.currentTimeMillis() / 1000)
                 put(MediaStore.Audio.Media.ALBUM_ARTIST, artist)
             }
@@ -698,8 +844,8 @@ class SongMetadataEditor(
     }
 }
 
-private fun MutableMap<String, Array<String>>.upsertOrRemove(key: String, value: String) {
-    if (value.isBlank()) {
+private fun MutableMap<String, Array<String>>.upsertOrRemove(key: String, value: String?) {
+    if (value.isNullOrBlank()) {
         remove(key)
     } else {
         this[key] = arrayOf(value)
@@ -715,8 +861,9 @@ data class SongMetadataEditResult(
 )
 
 data class CoverArtUpdate(
-    val bytes: ByteArray,
-    val mimeType: String = "image/jpeg"
+    val bytes: ByteArray? = null,
+    val mimeType: String = "image/jpeg",
+    val isDeletion: Boolean = false
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

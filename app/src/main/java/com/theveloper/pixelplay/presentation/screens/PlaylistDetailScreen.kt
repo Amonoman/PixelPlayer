@@ -854,7 +854,7 @@ fun PlaylistDetailScreen(
                     navController.navigateSafely(Screen.ArtistDetail.createRoute(currentSong.artistId))
                     showSongInfoBottomSheet = false
                 },
-                onEditSong = { newTitle, newArtist, newAlbum, newGenre, newLyrics, newTrackNumber, coverArtUpdate ->
+                onEditSong = { newTitle, newArtist, newAlbum, newGenre, newLyrics, newTrackNumber, newDiscNumber, coverArtUpdate ->
                     playerViewModel.editSongMetadata(
                         currentSong,
                         newTitle,
@@ -863,6 +863,7 @@ fun PlaylistDetailScreen(
                         newGenre,
                         newLyrics,
                         newTrackNumber,
+                        newDiscNumber,
                         coverArtUpdate
                     )
                 },
