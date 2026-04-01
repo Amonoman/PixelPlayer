@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Phone APK
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-phone:
     runs-on: ubuntu-latest
 
     steps:
@@ -19,34 +19,18 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: 17
-          cache: gradle
+          java-version: '17'
+          cache: 'gradle'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v4
-
-      - name: Install Android SDK components
-        run: |
-          yes | sdkmanager --licenses
-          sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v5
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
 
       - name: Build Phone debug APK
-        run: ./gradlew :app:assembleDebug
-
-      - name: Build Wear OS debug APK
-        run: ./gradlew :wear:assembleDebug
+        run: ./gradlew :app:assembleRelease
 
       - name: Upload Phone APK artifact
         uses: actions/upload-artifact@v7
         with:
-          name: PixelPlay-phone-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
-
-      - name: Upload Wear OS APK artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: PixelPlay-wear-debug-apk
-          path: wear/build/outputs/apk/debug/wear-debug.apk
+          name: PixelPlay-phone-only-release
+          path: app/build/outputs/apk/release/*.apk
+          
