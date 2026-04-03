@@ -14,6 +14,8 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
+import androidx.media3.extractor.DefaultExtractorsFactory
+import androidx.media3.extractor.mp4.Mp4Extractor
 //import androidx.media3.exoplayer.ffmpeg.FfmpegAudioRenderer
 import com.theveloper.pixelplay.data.model.TransitionSettings
 import com.theveloper.pixelplay.utils.envelope
@@ -340,6 +342,10 @@ class DualPlayerEngine @Inject constructor(
         
         val dataSourceFactory = DefaultDataSource.Factory(context)
         val resolvingFactory = ResolvingDataSource.Factory(dataSourceFactory, resolver)
+        val extractorsFactory = DefaultExtractorsFactory()
+            // Some vendor-produced M4A files expose broken edit lists that make seek
+            // drift or snap back. Ignore them so MP4-family local playback stays seekable.
+            .setMp4ExtractorFlags(Mp4Extractor.FLAG_WORKAROUND_IGNORE_EDIT_LISTS)
 
         // Tune LoadControl to prevent "loop of death" (underrun -> start -> underrun)
         // Increase bufferForPlaybackMs to wait for more data before starting/resuming.
@@ -353,7 +359,7 @@ class DualPlayerEngine @Inject constructor(
             .build()
 
         return ExoPlayer.Builder(context, renderersFactory)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(resolvingFactory))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(resolvingFactory, extractorsFactory))
             .setLoadControl(loadControl)
             .build().apply {
             setAudioAttributes(audioAttributes, handleAudioFocus)

@@ -415,7 +415,8 @@ class PlayerViewModel @Inject constructor(
             "DEEPSEEK" -> deepseekKey.isNotBlank()
             else -> geminiKey.isNotBlank()
         }
-    }.stateIn(
+    }.distinctUntilChanged()
+        .stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = false
@@ -1005,7 +1006,8 @@ class PlayerViewModel @Inject constructor(
         favoriteSongIds
     ) { songId, ids ->
         songId?.let { ids.contains(it) } ?: false
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    }.distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     // ---------------------------------------------------------------------------
     // FullPlayerSlice — consolidates 11 independent flows into ONE subscription.
@@ -1098,6 +1100,58 @@ class PlayerViewModel @Inject constructor(
     }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), FullPlayerSlice())
+
+    // ---------------------------------------------------------------------------
+    // PlayerConfigSlice — consolidates 7 infrequently-changing preference flows
+    // into ONE subscription. Previously UnifiedPlayerSheet(V2) had 7 separate
+    // collectAsStateWithLifecycle() calls for config values, each causing a full
+    // sheet recomposition when any preference changed.
+    // ---------------------------------------------------------------------------
+    data class PlayerConfigSlice(
+        val navBarCornerRadius: Int = 32,
+        val navBarStyle: String = NavBarStyle.DEFAULT,
+        val carouselStyle: String = CarouselStyle.NO_PEEK,
+        val fullPlayerLoadingTweaks: FullPlayerLoadingTweaks = FullPlayerLoadingTweaks(),
+        val tapBackgroundClosesPlayer: Boolean = true,
+        val useSmoothCorners: Boolean = true,
+        val playerThemePreference: String = ThemePreference.ALBUM_ART
+    )
+
+    private val playerConfigSlicePart1 = combine(
+        navBarCornerRadius,
+        navBarStyle,
+        carouselStyle,
+        fullPlayerLoadingTweaks,
+        tapBackgroundClosesPlayer
+    ) { radius, style, carousel, tweaks, tapClose ->
+        PlayerConfigSlicePart1(radius, style, carousel, tweaks, tapClose)
+    }
+
+    private data class PlayerConfigSlicePart1(
+        val navBarCornerRadius: Int,
+        val navBarStyle: String,
+        val carouselStyle: String,
+        val fullPlayerLoadingTweaks: FullPlayerLoadingTweaks,
+        val tapBackgroundClosesPlayer: Boolean
+    )
+
+    val playerConfigSlice: StateFlow<PlayerConfigSlice> = combine(
+        playerConfigSlicePart1,
+        useSmoothCorners,
+        playerThemePreference
+    ) { p1, smoothCorners, themePref ->
+        PlayerConfigSlice(
+            navBarCornerRadius = p1.navBarCornerRadius,
+            navBarStyle = p1.navBarStyle,
+            carouselStyle = p1.carouselStyle,
+            fullPlayerLoadingTweaks = p1.fullPlayerLoadingTweaks,
+            tapBackgroundClosesPlayer = p1.tapBackgroundClosesPlayer,
+            useSmoothCorners = smoothCorners,
+            playerThemePreference = themePref
+        )
+    }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PlayerConfigSlice())
 
     // Library State - delegated to LibraryStateHolder
     // Favorites now use paginated flow from LibraryStateHolder (DB-level sort & filter)
@@ -2044,7 +2098,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun triggerAlbumNavigationFromPlayer(albumId: Long) {
-        if (albumId <= 0) {
+        if (albumId == -1L) {
             Log.d("AlbumDebug", "triggerAlbumNavigationFromPlayer ignored invalid albumId=$albumId")
             return
         }
@@ -2825,7 +2879,8 @@ class PlayerViewModel @Inject constructor(
 
             mediaItems += MediaItem.Builder()
                 .setMediaId(song.id)
-                .setUri(MediaItemBuilder.playbackUri(song.contentUriString))
+                .setUri(MediaItemBuilder.playbackUri(song))
+                .setMimeType(song.mimeType)
                 .setMediaMetadata(metadataBuilder.build())
                 .build()
         }
@@ -2898,7 +2953,7 @@ class PlayerViewModel @Inject constructor(
 
             // Pre-resolve the starting song's cloud URI before ExoPlayer touches it.
             // This populates the resolvedUriCache so resolveDataSpec finds it instantly.
-            val startingUri = MediaItemBuilder.playbackUri(effectiveStartSong.contentUriString)
+            val startingUri = MediaItemBuilder.playbackUri(effectiveStartSong)
             if (startingUri.scheme == "telegram" || startingUri.scheme == "netease" || startingUri.scheme == "qqmusic") {
                 if (startingUri.scheme == "telegram") {
                     ensureTelegramPlaybackObserversStarted()
@@ -2965,7 +3020,8 @@ class PlayerViewModel @Inject constructor(
 
         val mediaItem = MediaItem.Builder()
             .setMediaId(song.id)
-            .setUri(MediaItemBuilder.playbackUri(song.contentUriString))
+            .setUri(MediaItemBuilder.playbackUri(song))
+            .setMimeType(song.mimeType)
             .setMediaMetadata(MediaItemBuilder.build(song).mediaMetadata)
             .build()
         if (controller.currentMediaItem?.mediaId == song.id) {
@@ -3037,7 +3093,8 @@ class PlayerViewModel @Inject constructor(
         mediaController?.let { controller ->
             val mediaItem = MediaItem.Builder()
                 .setMediaId(song.id)
-                .setUri(MediaItemBuilder.playbackUri(song.contentUriString))
+                .setUri(MediaItemBuilder.playbackUri(song))
+                .setMimeType(song.mimeType)
                 .setMediaMetadata(MediaMetadata.Builder()
                     .setTitle(song.title)
                     .setArtist(song.displayArtist)
@@ -3053,7 +3110,8 @@ class PlayerViewModel @Inject constructor(
         mediaController?.let { controller ->
             val mediaItem = MediaItem.Builder()
                 .setMediaId(song.id)
-                .setUri(MediaItemBuilder.playbackUri(song.contentUriString))
+                .setUri(MediaItemBuilder.playbackUri(song))
+                .setMimeType(song.mimeType)
                 .setMediaMetadata(
                     MediaMetadata.Builder()
                         .setTitle(song.title)
