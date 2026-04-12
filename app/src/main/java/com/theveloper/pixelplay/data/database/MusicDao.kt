@@ -807,8 +807,8 @@ interface MusicDao {
             COUNT(songs.id) AS song_count,
             albums.date_added AS date_added,
             albums.year AS year
-        FROM albums
-        INNER JOIN songs ON albums.id = songs.album_id
+        FROM songs
+        INNER JOIN albums ON albums.id = songs.album_id
         WHERE (:applyDirectoryFilter = 0 OR songs.id < 0 OR songs.parent_directory_path IN (:allowedParentDirs))
         AND (
             :filterMode = 0
@@ -891,8 +891,8 @@ interface MusicDao {
             COUNT(songs.id) AS song_count,
             albums.date_added AS date_added,
             albums.year AS year
-        FROM albums
-        INNER JOIN songs ON albums.id = songs.album_id
+        FROM songs
+        INNER JOIN albums ON albums.id = songs.album_id
         WHERE (:applyDirectoryFilter = 0 OR songs.id < 0 OR songs.parent_directory_path IN (:allowedParentDirs))
         GROUP BY
             albums.id,
@@ -944,8 +944,8 @@ interface MusicDao {
             COUNT(songs.id) AS song_count,
             albums.date_added AS date_added,
             albums.year AS year
-        FROM albums
-        INNER JOIN songs ON albums.id = songs.album_id
+        FROM songs
+        INNER JOIN albums ON albums.id = songs.album_id
         WHERE (:applyDirectoryFilter = 0 OR songs.id < 0 OR songs.parent_directory_path IN (:allowedParentDirs))
         AND (albums.title LIKE '%' || :query || '%' OR albums.artist_name LIKE '%' || :query || '%')
         GROUP BY
@@ -1012,9 +1012,9 @@ interface MusicDao {
     @Query("""
         SELECT artists.id, artists.name, artists.image_url, artists.custom_image_uri,
                COUNT(DISTINCT songs.id) AS track_count
-        FROM artists
-        INNER JOIN song_artist_cross_ref ON artists.id = song_artist_cross_ref.artist_id
-        INNER JOIN songs ON song_artist_cross_ref.song_id = songs.id
+        FROM songs
+        INNER JOIN song_artist_cross_ref ON song_artist_cross_ref.song_id = songs.id
+        INNER JOIN artists ON artists.id = song_artist_cross_ref.artist_id
         WHERE (:applyDirectoryFilter = 0 OR songs.id < 0 OR songs.parent_directory_path IN (:allowedParentDirs))
         AND artists.name LIKE '%' || :query || '%'
         GROUP BY artists.id
@@ -1334,9 +1334,9 @@ interface MusicDao {
     @Query("""
         SELECT artists.id, artists.name, artists.image_url, artists.custom_image_uri,
                COUNT(DISTINCT songs.id) AS track_count
-        FROM artists
-        INNER JOIN song_artist_cross_ref ON artists.id = song_artist_cross_ref.artist_id
-        INNER JOIN songs ON song_artist_cross_ref.song_id = songs.id
+        FROM songs
+        INNER JOIN song_artist_cross_ref ON song_artist_cross_ref.song_id = songs.id
+        INNER JOIN artists ON artists.id = song_artist_cross_ref.artist_id
         WHERE (:applyDirectoryFilter = 0 OR songs.id < 0 OR songs.parent_directory_path IN (:allowedParentDirs))
         AND (
             :filterMode = 0

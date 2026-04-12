@@ -48,7 +48,9 @@ object SourceType {
         Index(value = ["content_uri_string"], unique = false),
         Index(value = ["date_added"], unique = false),
         Index(value = ["duration"], unique = false),
-        Index(value = ["source_type"], unique = false)
+        Index(value = ["source_type"], unique = false),
+        Index(value = ["parent_directory_path", "source_type", "album_id"], unique = false),
+        Index(value = ["parent_directory_path", "source_type", "id"], unique = false)
     ],
     foreignKeys = [
         ForeignKey(
