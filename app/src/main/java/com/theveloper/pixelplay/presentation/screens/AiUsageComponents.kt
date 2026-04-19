@@ -6,13 +6,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.database.AiUsageEntity
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import androidx.compose.material.icons.Icons
@@ -26,9 +29,9 @@ fun AiUsageLogItem(
     isFirst: Boolean,
     isLast: Boolean
 ) {
-    val df = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
+    val pattern = stringResource(R.string.presentation_batch_g_ai_usage_date_pattern)
+    val df = remember(pattern) { SimpleDateFormat(pattern, Locale.getDefault()) }
     val dateStr = df.format(Date(usage.timestamp))
-    val totalTokens = usage.promptTokens + usage.outputTokens + usage.thoughtTokens
 
     Row(
         modifier = Modifier
@@ -36,7 +39,6 @@ fun AiUsageLogItem(
             .padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Timeline Column
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.width(16.dp)
@@ -46,11 +48,11 @@ fun AiUsageLogItem(
                     .width(2.dp)
                     .weight(if (isFirst) 0.1f else 1f)
                     .background(
-                        if (isFirst) Color.Transparent 
+                        if (isFirst) Color.Transparent
                         else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                     )
             )
-            
+
             Surface(
                 modifier = Modifier.size(12.dp),
                 shape = CircleShape,
@@ -63,13 +65,12 @@ fun AiUsageLogItem(
                     .width(2.dp)
                     .weight(if (isLast) 0.1f else 1f)
                     .background(
-                        if (isLast) Color.Transparent 
+                        if (isLast) Color.Transparent
                         else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                     )
             )
         }
 
-        // Content Column
         Surface(
             modifier = Modifier
                 .weight(1f)
@@ -104,7 +105,7 @@ fun AiUsageLogItem(
                             fontWeight = FontWeight.Medium
                         )
                     }
-                    
+
                     Surface(
                         color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
                         shape = RoundedCornerShape(8.dp)
@@ -120,7 +121,7 @@ fun AiUsageLogItem(
                 }
 
                 Text(
-                    text = "${usage.provider} · ${usage.model}",
+                    text = stringResource(R.string.presentation_batch_h_ai_usage_provider_model, usage.provider, usage.model),
                     style = MaterialTheme.typography.titleSmall.copy(
                         fontFamily = GoogleSansRounded,
                         letterSpacing = 0.5.sp
@@ -133,10 +134,22 @@ fun AiUsageLogItem(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    TokenBadge(label = "Input", count = usage.promptTokens, color = MaterialTheme.colorScheme.primary)
-                    TokenBadge(label = "Output", count = usage.outputTokens, color = MaterialTheme.colorScheme.tertiary)
+                    TokenBadge(
+                        label = stringResource(R.string.presentation_batch_g_ai_token_input),
+                        count = usage.promptTokens,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    TokenBadge(
+                        label = stringResource(R.string.presentation_batch_g_ai_token_output),
+                        count = usage.outputTokens,
+                        color = MaterialTheme.colorScheme.tertiary
+                    )
                     if (usage.thoughtTokens > 0) {
-                        TokenBadge(label = "Thought", count = usage.thoughtTokens, color = MaterialTheme.colorScheme.secondary)
+                        TokenBadge(
+                            label = stringResource(R.string.presentation_batch_g_ai_token_thought),
+                            count = usage.thoughtTokens,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
                     }
                 }
             }
@@ -146,6 +159,7 @@ fun AiUsageLogItem(
 
 @Composable
 private fun TokenBadge(label: String, count: Int, color: Color) {
+    val countStr = String.format(Locale.US, "%,d", count)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -157,7 +171,7 @@ private fun TokenBadge(label: String, count: Int, color: Color) {
                 .background(color)
         )
         Text(
-            text = "$label: ${String.format("%, d", count)}",
+            text = stringResource(R.string.presentation_batch_g_ai_token_count, label, countStr),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
