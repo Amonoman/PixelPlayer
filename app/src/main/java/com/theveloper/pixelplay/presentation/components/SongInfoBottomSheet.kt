@@ -87,6 +87,7 @@ import androidx.compose.ui.res.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
+@Suppress("UNUSED_PARAMETER")
 fun SongInfoBottomSheet(
     song: Song,
     isFavorite: Boolean,
@@ -833,11 +834,6 @@ fun SongInfoBottomSheet(
             )
             showEditSheet = false
         },
-        generateAiMetadata = generateAiMetadata,
-        isGeneratingAiMetadata = isGeneratingMetadata,
-        aiMetadataSuccess = aiMetadataSuccess,
-        aiError = aiError,
-        onRetryMetadata = onRetryMetadata
     )
 }
 

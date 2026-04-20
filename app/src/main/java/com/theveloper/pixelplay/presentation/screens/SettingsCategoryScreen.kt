@@ -3,6 +3,9 @@ package com.theveloper.pixelplay.presentation.screens
 import com.theveloper.pixelplay.presentation.navigation.navigateSafely
 import com.theveloper.pixelplay.presentation.components.BackupModuleSelectionDialog
 import com.theveloper.pixelplay.data.preferences.AiPreferencesRepository
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.Date
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.draw.rotate
 
@@ -867,6 +870,7 @@ fun SettingsCategoryScreen(
                                     com.theveloper.pixelplay.data.ai.provider.AiProvider.KIMI -> stringResource(R.string.setcat_ai_source_kimi)
                                     com.theveloper.pixelplay.data.ai.provider.AiProvider.GLM -> stringResource(R.string.setcat_ai_source_glm)
                                     com.theveloper.pixelplay.data.ai.provider.AiProvider.OPENAI -> stringResource(R.string.setcat_ai_source_openai)
+                                    com.theveloper.pixelplay.data.ai.provider.AiProvider.OPENROUTER -> "OpenRouter (openrouter.ai)"
                                 }
                                 
                                 AiApiKeyItem(
@@ -1024,14 +1028,19 @@ fun SettingsCategoryScreen(
                                         Column(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .padding(top = 16.dp, bottom = 8.dp)
+                                                .padding(top = 8.dp, bottom = 8.dp)
                                         ) {
-                                            recentAiUsage.forEachIndexed { index, usage ->
-                                                AiUsageLogItem(
-                                                    usage = usage,
-                                                    isFirst = index == 0,
-                                                    isLast = index == recentAiUsage.size - 1
-                                                )
+                                            val dateFormat = SimpleDateFormat("MMMM d, yyyy", Locale.getDefault())
+                                            val groupedUsage = recentAiUsage.groupBy { 
+                                                dateFormat.format(Date(it.timestamp)) 
+                                            }
+
+                                            groupedUsage.forEach { (date, items) ->
+                                                AiUsageDateHeader(date = date)
+                                                items.forEach { usage ->
+                                                    AiUsageLogItem(usage = usage)
+                                                }
+                                                Spacer(modifier = Modifier.height(8.dp))
                                             }
                                         }
                                     }

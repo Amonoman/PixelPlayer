@@ -1903,8 +1903,18 @@ fun LibraryScreen(
             selectedAlbums = selectedAlbums,
             maxSelection = MAX_ALBUM_MULTI_SELECTION,
             onDismiss = { showAlbumMultiSelectionSheet = false },
-            onQueueAndPlay = {
-                playerViewModel.queueAndPlaySelectedAlbums(selectedAlbums)
+            onPlay = {
+                playerViewModel.playSelectedAlbums(selectedAlbums)
+                selectedAlbums = emptyList()
+                showAlbumMultiSelectionSheet = false
+            },
+            onPlayNext = {
+                playerViewModel.addSelectedAlbumsAsNext(selectedAlbums)
+                selectedAlbums = emptyList()
+                showAlbumMultiSelectionSheet = false
+            },
+            onAddToQueue = {
+                playerViewModel.addSelectedAlbumsToQueue(selectedAlbums)
                 selectedAlbums = emptyList()
                 showAlbumMultiSelectionSheet = false
             }

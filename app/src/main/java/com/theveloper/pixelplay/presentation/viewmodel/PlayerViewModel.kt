@@ -204,6 +204,12 @@ private data class PendingLyricsSave(
     val preferSynced: Boolean
 )
 
+private data class ResolvedAlbumSelection(
+    val albums: List<Album>,
+    val songs: List<Song>,
+    val wasTrimmed: Boolean
+)
+
 @UnstableApi
 @SuppressLint("LogNotTimber")
 @OptIn(coil.annotation.ExperimentalCoilApi::class, ExperimentalCoroutinesApi::class)
@@ -3365,50 +3371,26 @@ class PlayerViewModel @Inject constructor(
         multiSelectionStateHolder.clearSelection()
     }
 
-    /**
-     * Resolves songs from selected albums (in selection order), builds a queue, and starts playback.
-     * For safety we process at most [MAX_ALBUM_BATCH_SELECTION] albums at once.
-     */
-    fun queueAndPlaySelectedAlbums(albums: List<Album>) {
+    fun playSelectedAlbums(albums: List<Album>) {
         if (albums.isEmpty()) return
-
-        val albumsToProcess = albums.take(MAX_ALBUM_BATCH_SELECTION)
-        val wasTrimmed = albums.size > albumsToProcess.size
-
         viewModelScope.launch {
             try {
-                val queuedSongs = withContext(Dispatchers.IO) {
-                    buildList {
-                        albumsToProcess.forEach { album ->
-                            val albumSongs = musicRepository.getSongsForAlbum(album.id).first()
-                            if (albumSongs.isNotEmpty()) {
-                                addAll(
-                                    albumSongs.sortedWith(
-                                        compareBy<Song> { it.discNumber }
-                                            .thenBy { if (it.trackNumber > 0) it.trackNumber else Int.MAX_VALUE }
-                                            .thenBy { it.title.lowercase(java.util.Locale.getDefault()) }
-                                    )
-                                )
-                            }
-                        }
-                    }
-                }
-
-                if (queuedSongs.isEmpty()) {
+                val resolvedSelection = resolveSelectedAlbumSongs(albums)
+                if (resolvedSelection.songs.isEmpty()) {
                     _toastEvents.emit(context.getString(R.string.player_no_playable_songs_in_albums))
                     return@launch
                 }
 
-                val queueName = if (albumsToProcess.size == 1) {
-                    albumsToProcess.first().title
+                val queueName = if (resolvedSelection.albums.size == 1) {
+                    resolvedSelection.albums.first().title
                 } else {
                     context.getString(R.string.player_queue_name_selected_albums)
                 }
 
-                playSongs(queuedSongs, queuedSongs.first(), queueName, null)
+                playSongs(resolvedSelection.songs, resolvedSelection.songs.first(), queueName, null)
                 _isSheetVisible.value = true
 
-                if (wasTrimmed) {
+                if (resolvedSelection.wasTrimmed) {
                     _toastEvents.emit(
                         context.getString(R.string.player_only_first_n_albums_queued, MAX_ALBUM_BATCH_SELECTION),
                     )
@@ -3416,16 +3398,72 @@ class PlayerViewModel @Inject constructor(
                     _toastEvents.emit(
                         context.getString(
                             R.string.player_albums_queued_format,
-                            albumsToProcess.size,
-                            queuedSongs.size,
+                            resolvedSelection.albums.size,
+                            resolvedSelection.songs.size,
                         ),
                     )
                 }
             } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Error queuing selected albums", e)
+                Log.e("PlayerViewModel", "Error playing selected albums", e)
                 _toastEvents.emit(context.getString(R.string.player_could_not_queue_albums))
             }
         }
+    }
+
+    fun addSelectedAlbumsAsNext(albums: List<Album>) {
+        if (albums.isEmpty()) return
+
+        viewModelScope.launch {
+            try {
+                val resolvedSelection = resolveSelectedAlbumSongs(albums)
+                if (resolvedSelection.songs.isEmpty()) {
+                    _toastEvents.emit("No playable songs found in selected albums")
+                    return@launch
+                }
+
+                resolvedSelection.songs
+                    .asReversed()
+                    .forEach(::addSongNextToQueue)
+
+                if (resolvedSelection.wasTrimmed) {
+                    _toastEvents.emit("Only the first $MAX_ALBUM_BATCH_SELECTION albums were added as next")
+                } else {
+                    _toastEvents.emit("${resolvedSelection.albums.size} albums will play next")
+                }
+            } catch (e: Exception) {
+                Log.e("PlayerViewModel", "Error adding selected albums as next", e)
+                _toastEvents.emit("Could not add selected albums as next")
+            }
+        }
+    }
+
+    fun addSelectedAlbumsToQueue(albums: List<Album>) {
+        if (albums.isEmpty()) return
+
+        viewModelScope.launch {
+            try {
+                val resolvedSelection = resolveSelectedAlbumSongs(albums)
+                if (resolvedSelection.songs.isEmpty()) {
+                    _toastEvents.emit("No playable songs found in selected albums")
+                    return@launch
+                }
+
+                resolvedSelection.songs.forEach(::addSongToQueue)
+
+                if (resolvedSelection.wasTrimmed) {
+                    _toastEvents.emit("Only the first $MAX_ALBUM_BATCH_SELECTION albums were added to queue")
+                } else {
+                    _toastEvents.emit("${resolvedSelection.albums.size} albums added to queue")
+                }
+            } catch (e: Exception) {
+                Log.e("PlayerViewModel", "Error adding selected albums to queue", e)
+                _toastEvents.emit("Could not add selected albums to queue")
+            }
+        }
+    }
+
+    fun queueAndPlaySelectedAlbums(albums: List<Album>) {
+        playSelectedAlbums(albums)
     }
 
     /**
@@ -3505,6 +3543,36 @@ class PlayerViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    private suspend fun resolveSelectedAlbumSongs(albums: List<Album>): ResolvedAlbumSelection {
+        val albumsToProcess = albums.take(MAX_ALBUM_BATCH_SELECTION)
+        val wasTrimmed = albums.size > albumsToProcess.size
+
+        val songs = withContext(Dispatchers.IO) {
+            buildList {
+                albumsToProcess.forEach { album ->
+                    val albumSongs = musicRepository.getSongsForAlbum(album.id).first()
+                    if (albumSongs.isNotEmpty()) {
+                        addAll(sortSongsForAlbumSelection(albumSongs))
+                    }
+                }
+            }
+        }
+
+        return ResolvedAlbumSelection(
+            albums = albumsToProcess,
+            songs = songs,
+            wasTrimmed = wasTrimmed
+        )
+    }
+
+    private fun sortSongsForAlbumSelection(songs: List<Song>): List<Song> {
+        return songs.sortedWith(
+            compareBy<Song> { it.discNumber }
+                .thenBy { if (it.trackNumber > 0) it.trackNumber else Int.MAX_VALUE }
+                .thenBy { it.title.lowercase(Locale.getDefault()) }
+        )
     }
 
     /**
