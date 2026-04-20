@@ -548,17 +548,17 @@ interface MusicDao {
         )
         ORDER BY
             CASE WHEN :sortOrder = 'song_default_order' THEN track_number END ASC,
-            CASE WHEN :sortOrder = 'song_title_az' THEN title END ASC,
-            CASE WHEN :sortOrder = 'song_title_za' THEN title END DESC,
-            CASE WHEN :sortOrder = 'song_artist' THEN artist_name END ASC,
-            CASE WHEN :sortOrder = 'song_artist_desc' THEN artist_name END DESC,
-            CASE WHEN :sortOrder = 'song_album' THEN album_name END ASC,
-            CASE WHEN :sortOrder = 'song_album_desc' THEN album_name END DESC,
+            CASE WHEN :sortOrder = 'song_title_az' THEN title END COLLATE NOCASE ASC,
+            CASE WHEN :sortOrder = 'song_title_za' THEN title END COLLATE NOCASE DESC,
+            CASE WHEN :sortOrder = 'song_artist' THEN artist_name END COLLATE NOCASE ASC,
+            CASE WHEN :sortOrder = 'song_artist_desc' THEN artist_name END COLLATE NOCASE DESC,
+            CASE WHEN :sortOrder = 'song_album' THEN album_name END COLLATE NOCASE ASC,
+            CASE WHEN :sortOrder = 'song_album_desc' THEN album_name END COLLATE NOCASE DESC,
             CASE WHEN :sortOrder = 'song_date_added' THEN date_added END DESC,
             CASE WHEN :sortOrder = 'song_date_added_asc' THEN date_added END ASC,
             CASE WHEN :sortOrder = 'song_duration' THEN duration END DESC,
             CASE WHEN :sortOrder = 'song_duration_asc' THEN duration END ASC,
-            title ASC,
+            title COLLATE NOCASE ASC,
             id ASC
     """)
     suspend fun getSongIdsSorted(
@@ -584,15 +584,15 @@ interface MusicDao {
             )
         )
         ORDER BY
-            CASE WHEN :sortOrder = 'liked_title_az' THEN songs.title END ASC,
-            CASE WHEN :sortOrder = 'liked_title_za' THEN songs.title END DESC,
-            CASE WHEN :sortOrder = 'liked_artist' THEN songs.artist_name END ASC,
-            CASE WHEN :sortOrder = 'liked_artist_desc' THEN songs.artist_name END DESC,
-            CASE WHEN :sortOrder = 'liked_album' THEN songs.album_name END ASC,
-            CASE WHEN :sortOrder = 'liked_album_desc' THEN songs.album_name END DESC,
+            CASE WHEN :sortOrder = 'liked_title_az' THEN songs.title END COLLATE NOCASE ASC,
+            CASE WHEN :sortOrder = 'liked_title_za' THEN songs.title END COLLATE NOCASE DESC,
+            CASE WHEN :sortOrder = 'liked_artist' THEN songs.artist_name END COLLATE NOCASE ASC,
+            CASE WHEN :sortOrder = 'liked_artist_desc' THEN songs.artist_name END COLLATE NOCASE DESC,
+            CASE WHEN :sortOrder = 'liked_album' THEN songs.album_name END COLLATE NOCASE ASC,
+            CASE WHEN :sortOrder = 'liked_album_desc' THEN songs.album_name END COLLATE NOCASE DESC,
             CASE WHEN :sortOrder = 'liked_date_liked' THEN favorites.timestamp END DESC,
             CASE WHEN :sortOrder = 'liked_date_liked_asc' THEN favorites.timestamp END ASC,
-            songs.title ASC,
+            songs.title COLLATE NOCASE ASC,
             songs.id ASC
     """)
     suspend fun getFavoriteSongIdsSorted(
@@ -623,19 +623,19 @@ interface MusicDao {
         )
         ORDER BY
             CASE WHEN :sortOrder = 'song_default_order' THEN track_number END ASC,
-            CASE WHEN :sortOrder = 'song_title_az' THEN title END ASC,
-            CASE WHEN :sortOrder = 'song_title_za' THEN title END DESC,
-            CASE WHEN :sortOrder = 'song_artist' THEN artist_name END ASC,
-            CASE WHEN :sortOrder = 'song_artist_desc' THEN artist_name END DESC,
-            CASE WHEN :sortOrder = 'song_album' THEN album_name END ASC,
-            CASE WHEN :sortOrder = 'song_album_desc' THEN album_name END DESC,
+            CASE WHEN :sortOrder = 'song_title_az' THEN title END COLLATE NOCASE ASC,
+            CASE WHEN :sortOrder = 'song_title_za' THEN title END COLLATE NOCASE DESC,
+            CASE WHEN :sortOrder = 'song_artist' THEN artist_name END COLLATE NOCASE ASC,
+            CASE WHEN :sortOrder = 'song_artist_desc' THEN artist_name END COLLATE NOCASE DESC,
+            CASE WHEN :sortOrder = 'song_album' THEN album_name END COLLATE NOCASE ASC,
+            CASE WHEN :sortOrder = 'song_album_desc' THEN album_name END COLLATE NOCASE DESC,
             CASE WHEN :sortOrder = 'song_date_added' THEN date_added END DESC,
             CASE WHEN :sortOrder = 'song_date_added_asc' THEN date_added END ASC,
             CASE WHEN :sortOrder = 'song_duration' THEN duration END DESC,
             CASE WHEN :sortOrder = 'song_duration_asc' THEN duration END ASC,
 
-            -- Secondary sort falls back to title for consistency
-            title ASC,
+            -- Secondary sort falls back to title for consistency (case-insensitive)
+            title COLLATE NOCASE ASC,
             id ASC
     """)
     fun getSongsPaginated(
@@ -662,17 +662,17 @@ interface MusicDao {
         )
         ORDER BY
             CASE WHEN :sortOrder = 'song_default_order' THEN track_number END ASC,
-            CASE WHEN :sortOrder = 'song_title_az' THEN title END ASC,
-            CASE WHEN :sortOrder = 'song_title_za' THEN title END DESC,
-            CASE WHEN :sortOrder = 'song_artist' THEN artist_name END ASC,
-            CASE WHEN :sortOrder = 'song_artist_desc' THEN artist_name END DESC,
-            CASE WHEN :sortOrder = 'song_album' THEN album_name END ASC,
-            CASE WHEN :sortOrder = 'song_album_desc' THEN album_name END DESC,
+            CASE WHEN :sortOrder = 'song_title_az' THEN title END COLLATE NOCASE ASC,
+            CASE WHEN :sortOrder = 'song_title_za' THEN title END COLLATE NOCASE DESC,
+            CASE WHEN :sortOrder = 'song_artist' THEN artist_name END COLLATE NOCASE ASC,
+            CASE WHEN :sortOrder = 'song_artist_desc' THEN artist_name END COLLATE NOCASE DESC,
+            CASE WHEN :sortOrder = 'song_album' THEN album_name END COLLATE NOCASE ASC,
+            CASE WHEN :sortOrder = 'song_album_desc' THEN album_name END COLLATE NOCASE DESC,
             CASE WHEN :sortOrder = 'song_date_added' THEN date_added END DESC,
             CASE WHEN :sortOrder = 'song_date_added_asc' THEN date_added END ASC,
             CASE WHEN :sortOrder = 'song_duration' THEN duration END DESC,
             CASE WHEN :sortOrder = 'song_duration_asc' THEN duration END ASC,
-            title ASC,
+            title COLLATE NOCASE ASC,
             id ASC
         LIMIT :limit OFFSET :offset
     """)
@@ -706,15 +706,15 @@ interface MusicDao {
             )
         )
         ORDER BY
-            CASE WHEN :sortOrder = 'liked_title_az' THEN songs.title END ASC,
-            CASE WHEN :sortOrder = 'liked_title_za' THEN songs.title END DESC,
-            CASE WHEN :sortOrder = 'liked_artist' THEN songs.artist_name END ASC,
-            CASE WHEN :sortOrder = 'liked_artist_desc' THEN songs.artist_name END DESC,
-            CASE WHEN :sortOrder = 'liked_album' THEN songs.album_name END ASC,
-            CASE WHEN :sortOrder = 'liked_album_desc' THEN songs.album_name END DESC,
+            CASE WHEN :sortOrder = 'liked_title_az' THEN songs.title END COLLATE NOCASE ASC,
+            CASE WHEN :sortOrder = 'liked_title_za' THEN songs.title END COLLATE NOCASE DESC,
+            CASE WHEN :sortOrder = 'liked_artist' THEN songs.artist_name END COLLATE NOCASE ASC,
+            CASE WHEN :sortOrder = 'liked_artist_desc' THEN songs.artist_name END COLLATE NOCASE DESC,
+            CASE WHEN :sortOrder = 'liked_album' THEN songs.album_name END COLLATE NOCASE ASC,
+            CASE WHEN :sortOrder = 'liked_album_desc' THEN songs.album_name END COLLATE NOCASE DESC,
             CASE WHEN :sortOrder = 'liked_date_liked' THEN favorites.timestamp END DESC,
             CASE WHEN :sortOrder = 'liked_date_liked_asc' THEN favorites.timestamp END ASC,
-            songs.title ASC,
+            songs.title COLLATE NOCASE ASC,
             songs.id ASC
     """)
     fun getFavoriteSongsPaginated(
@@ -742,7 +742,7 @@ interface MusicDao {
                 AND songs.source_type != 0
             )
         )
-        ORDER BY songs.title ASC
+        ORDER BY songs.title COLLATE NOCASE ASC
     """)
     suspend fun getFavoriteSongsList(
         allowedParentDirs: List<String>,
@@ -767,15 +767,15 @@ interface MusicDao {
             )
         )
         ORDER BY
-            CASE WHEN :sortOrder = 'liked_title_az' THEN songs.title END ASC,
-            CASE WHEN :sortOrder = 'liked_title_za' THEN songs.title END DESC,
-            CASE WHEN :sortOrder = 'liked_artist' THEN songs.artist_name END ASC,
-            CASE WHEN :sortOrder = 'liked_artist_desc' THEN songs.artist_name END DESC,
-            CASE WHEN :sortOrder = 'liked_album' THEN songs.album_name END ASC,
-            CASE WHEN :sortOrder = 'liked_album_desc' THEN songs.album_name END DESC,
+            CASE WHEN :sortOrder = 'liked_title_az' THEN songs.title END COLLATE NOCASE ASC,
+            CASE WHEN :sortOrder = 'liked_title_za' THEN songs.title END COLLATE NOCASE DESC,
+            CASE WHEN :sortOrder = 'liked_artist' THEN songs.artist_name END COLLATE NOCASE ASC,
+            CASE WHEN :sortOrder = 'liked_artist_desc' THEN songs.artist_name END COLLATE NOCASE DESC,
+            CASE WHEN :sortOrder = 'liked_album' THEN songs.album_name END COLLATE NOCASE ASC,
+            CASE WHEN :sortOrder = 'liked_album_desc' THEN songs.album_name END COLLATE NOCASE DESC,
             CASE WHEN :sortOrder = 'liked_date_liked' THEN favorites.timestamp END DESC,
             CASE WHEN :sortOrder = 'liked_date_liked_asc' THEN favorites.timestamp END ASC,
-            songs.title ASC,
+            songs.title COLLATE NOCASE ASC,
             songs.id ASC
         LIMIT :limit OFFSET :offset
     """)

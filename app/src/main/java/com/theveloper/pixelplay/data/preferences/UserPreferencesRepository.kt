@@ -25,6 +25,7 @@ import javax.inject.Singleton
 import kotlin.text.get
 import kotlin.text.set
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.decodeFromString
@@ -770,12 +771,12 @@ constructor(
     val allowedDirectoriesFlow: Flow<Set<String>> =
             dataStore.data.map { preferences ->
                 preferences[PreferencesKeys.ALLOWED_DIRECTORIES] ?: emptySet()
-            }
+            }.distinctUntilChanged()
 
     val blockedDirectoriesFlow: Flow<Set<String>> =
             dataStore.data.map { preferences ->
                 preferences[PreferencesKeys.BLOCKED_DIRECTORIES] ?: emptySet()
-            }
+            }.distinctUntilChanged()
 
     val initialSetupDoneFlow: Flow<Boolean> =
             dataStore.data.map { preferences ->
@@ -1457,7 +1458,7 @@ constructor(
     val hideLocalMediaFlow: Flow<Boolean> = dataStore.data
         .map { preferences ->
             preferences[PreferencesKeys.HIDE_LOCAL_MEDIA] ?: false
-        }
+        }.distinctUntilChanged()
 
     val telegramTopicDisplayModeFlow: Flow<TelegramTopicDisplayMode> = dataStore.data
         .map { preferences ->
