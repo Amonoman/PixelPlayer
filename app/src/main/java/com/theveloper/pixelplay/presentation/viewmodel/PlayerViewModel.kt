@@ -255,7 +255,20 @@ class PlayerViewModel @Inject constructor(
 
     private val _playerUiState = MutableStateFlow(PlayerUiState())
     val playerUiState: StateFlow<PlayerUiState> = _playerUiState.asStateFlow()
-    
+
+    // Dedicated queue flow so the player sheet's MiniPlayer branch does not
+    // recompose whenever the queue changes. Consumers that actually need the
+    // queue (FullPlayer carousel, queue sheet) collect this narrower flow
+    // directly, keeping the unrelated subtree stable.
+    val queueFlow: StateFlow<ImmutableList<Song>> = _playerUiState
+        .map { it.currentPlaybackQueue }
+        .distinctUntilChanged()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = persistentListOf()
+        )
+
     private val _showNoInternetDialog = MutableSharedFlow<Unit>(
         extraBufferCapacity = 1,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
