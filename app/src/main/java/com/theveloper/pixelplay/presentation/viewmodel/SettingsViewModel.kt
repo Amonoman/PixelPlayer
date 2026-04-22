@@ -23,6 +23,7 @@ import com.theveloper.pixelplay.data.preferences.AiPreferencesRepository
 import com.theveloper.pixelplay.data.preferences.AlbumArtQuality
 import com.theveloper.pixelplay.data.preferences.AlbumArtColorAccuracy
 import com.theveloper.pixelplay.data.preferences.AlbumArtPaletteStyle
+import com.theveloper.pixelplay.data.preferences.AppLanguage
 import com.theveloper.pixelplay.data.preferences.CollagePattern
 import com.theveloper.pixelplay.data.preferences.FullPlayerLoadingTweaks
 import com.theveloper.pixelplay.data.preferences.ThemePreferencesRepository
@@ -40,6 +41,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.data.ai.GeminiModel
 import com.theveloper.pixelplay.data.ai.provider.AiClientFactory
@@ -47,10 +49,12 @@ import com.theveloper.pixelplay.data.ai.provider.AiProvider
 import com.theveloper.pixelplay.data.preferences.LaunchTab
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.service.player.HiFiCapabilityChecker
+import com.theveloper.pixelplay.utils.AppLocaleManager
 import java.io.File
 
 data class SettingsUiState(
     val isLoadingDirectories: Boolean = false,
+    val appLanguageTag: String = AppLanguage.SYSTEM,
     val appThemeMode: String = AppThemeMode.FOLLOW_SYSTEM,
     val playerThemePreference: String = ThemePreference.ALBUM_ART,
     val albumArtPaletteStyle: AlbumArtPaletteStyle = AlbumArtPaletteStyle.default,
@@ -84,6 +88,7 @@ data class SettingsUiState(
     val showPlayerFileInfo: Boolean = true,
     // Developer Options
     val albumArtQuality: AlbumArtQuality = AlbumArtQuality.MEDIUM,
+    val albumArtCacheLimitMb: Int = 200,
     val tapBackgroundClosesPlayer: Boolean = false,
     val hapticsEnabled: Boolean = true,
     val immersiveLyricsEnabled: Boolean = false,
@@ -100,6 +105,7 @@ data class SettingsUiState(
     val collagePattern: CollagePattern = CollagePattern.default,
     val collageAutoRotate: Boolean = false,
     val minSongDuration: Int = 10000,
+    val minTracksPerAlbum: Int = 1,
     val replayGainEnabled: Boolean = false,
     val replayGainUseAlbumGain: Boolean = false,
     val isSafeTokenLimitEnabled: Boolean = true
@@ -256,6 +262,13 @@ class SettingsViewModel @Inject constructor(
     val openaiSystemPrompt: StateFlow<String> = aiPreferencesRepository.openaiSystemPrompt
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AiPreferencesRepository.DEFAULT_OPENAI_SYSTEM_PROMPT)
 
+    val openrouterApiKey: StateFlow<String> = aiPreferencesRepository.openrouterApiKey
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+    val openrouterModel: StateFlow<String> = aiPreferencesRepository.openrouterModel
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+    val openrouterSystemPrompt: StateFlow<String> = aiPreferencesRepository.openrouterSystemPrompt
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AiPreferencesRepository.DEFAULT_OPENROUTER_SYSTEM_PROMPT)
+
     fun onAiApiKeyChange(apiKey: String) {
         viewModelScope.launch {
             val providerStr = aiProvider.value
@@ -323,6 +336,13 @@ class SettingsViewModel @Inject constructor(
             else clearModelsState("OPENAI")
         }
     }
+    fun onOpenrouterApiKeyChange(apiKey: String) {
+        viewModelScope.launch {
+            aiPreferencesRepository.setApiKey(AiProvider.OPENROUTER, apiKey)
+            if (apiKey.isNotBlank()) fetchAvailableModels(apiKey, "OPENROUTER")
+            else clearModelsState("OPENROUTER")
+        }
+    }
 
     fun onAiModelChange(model: String) {
         viewModelScope.launch {
@@ -339,6 +359,7 @@ class SettingsViewModel @Inject constructor(
     fun onKimiModelChange(model: String) = viewModelScope.launch { aiPreferencesRepository.setModel(AiProvider.KIMI, model) }
     fun onGlmModelChange(model: String) = viewModelScope.launch { aiPreferencesRepository.setModel(AiProvider.GLM, model) }
     fun onOpenAiModelChange(model: String) = viewModelScope.launch { aiPreferencesRepository.setModel(AiProvider.OPENAI, model) }
+    fun onOpenrouterModelChange(model: String) = viewModelScope.launch { aiPreferencesRepository.setModel(AiProvider.OPENROUTER, model) }
 
     fun onAiSystemPromptChange(prompt: String) {
         viewModelScope.launch {
@@ -355,6 +376,7 @@ class SettingsViewModel @Inject constructor(
     fun onKimiSystemPromptChange(prompt: String) = viewModelScope.launch { aiPreferencesRepository.setSystemPrompt(AiProvider.KIMI, prompt) }
     fun onGlmSystemPromptChange(prompt: String) = viewModelScope.launch { aiPreferencesRepository.setSystemPrompt(AiProvider.GLM, prompt) }
     fun onOpenAiSystemPromptChange(prompt: String) = viewModelScope.launch { aiPreferencesRepository.setSystemPrompt(AiProvider.OPENAI, prompt) }
+    fun onOpenrouterSystemPromptChange(prompt: String) = viewModelScope.launch { aiPreferencesRepository.setSystemPrompt(AiProvider.OPENROUTER, prompt) }
 
     fun resetAiSystemPrompt() {
         viewModelScope.launch {
@@ -371,6 +393,7 @@ class SettingsViewModel @Inject constructor(
     fun resetKimiSystemPrompt() = viewModelScope.launch { aiPreferencesRepository.resetSystemPrompt(AiProvider.KIMI) }
     fun resetGlmSystemPrompt() = viewModelScope.launch { aiPreferencesRepository.resetSystemPrompt(AiProvider.GLM) }
     fun resetOpenAiSystemPrompt() = viewModelScope.launch { aiPreferencesRepository.resetSystemPrompt(AiProvider.OPENAI) }
+    fun resetOpenrouterSystemPrompt() = viewModelScope.launch { aiPreferencesRepository.resetSystemPrompt(AiProvider.OPENROUTER) }
 
     fun clearAiUsageData() {
         viewModelScope.launch {
@@ -452,7 +475,12 @@ class SettingsViewModel @Inject constructor(
 
     init {
         // One-time device capability check — result is cached inside HiFiCapabilityChecker
-        _uiState.update { it.copy(hiFiModeDeviceSupported = HiFiCapabilityChecker.isSupported()) }
+        _uiState.update {
+            it.copy(
+                hiFiModeDeviceSupported = HiFiCapabilityChecker.isSupported(),
+                appLanguageTag = AppLocaleManager.currentLanguageTag(context)
+            )
+        }
 
         // Consolidated collectors using combine() to reduce coroutine overhead
         // Instead of 20 separate coroutines, we use 2 combined flows
@@ -614,6 +642,12 @@ class SettingsViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
+            userPreferencesRepository.albumArtCacheLimitMbFlow.collect { limitMb ->
+                _uiState.update { it.copy(albumArtCacheLimitMb = limitMb) }
+            }
+        }
+
+        viewModelScope.launch {
             userPreferencesRepository.tapBackgroundClosesPlayerFlow.collect { enabled ->
                 _uiState.update { it.copy(tapBackgroundClosesPlayer = enabled) }
             }
@@ -622,6 +656,12 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferencesRepository.minSongDurationFlow.collect { duration ->
                 _uiState.update { it.copy(minSongDuration = duration) }
+            }
+        }
+
+        viewModelScope.launch {
+            userPreferencesRepository.minTracksPerAlbumFlow.collect { minTracks ->
+                _uiState.update { it.copy(minTracksPerAlbum = minTracks) }
             }
         }
 
@@ -754,6 +794,12 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             themePreferencesRepository.setAppThemeMode(mode)
         }
+    }
+
+    fun setAppLanguage(languageTag: String) {
+        val normalized = AppLanguage.normalize(languageTag)
+        AppLocaleManager.applyLanguage(context, normalized)
+        _uiState.update { it.copy(appLanguageTag = normalized) }
     }
 
     fun setNavBarStyle(style: String) {
@@ -980,6 +1026,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setMinTracksPerAlbum(minTracks: Int) {
+        viewModelScope.launch {
+            userPreferencesRepository.setMinTracksPerAlbum(minTracks)
+        }
+    }
+
     fun setReplayGainEnabled(enabled: Boolean) {
         viewModelScope.launch {
             userPreferencesRepository.setReplayGainEnabled(enabled)
@@ -1096,7 +1148,12 @@ class SettingsViewModel @Inject constructor(
                     aiPreferencesRepository.setModel(provider, firstModel)
                 }
             } catch (e: Exception) {
-                _uiState.update { it.copy(isLoadingModels = false, modelsFetchError = e.message ?: "Failed to load models") }
+                _uiState.update {
+                    it.copy(
+                        isLoadingModels = false,
+                        modelsFetchError = e.message ?: context.getString(R.string.models_fetch_failed),
+                    )
+                }
             }
         }
     }
@@ -1122,7 +1179,7 @@ class SettingsViewModel @Inject constructor(
      * This should only be used for testing in Developer Options.
      */
     fun triggerTestCrash() {
-        throw RuntimeException("Test crash triggered from Developer Options - This is intentional for testing the crash reporting system")
+        throw RuntimeException(context.getString(R.string.dev_test_crash_message))
     }
 
     fun resetSetupFlow() {
@@ -1145,6 +1202,13 @@ class SettingsViewModel @Inject constructor(
     fun setAlbumArtQuality(quality: AlbumArtQuality) {
         viewModelScope.launch {
             userPreferencesRepository.setAlbumArtQuality(quality)
+        }
+    }
+
+    fun setAlbumArtCacheLimitMb(limitMb: Int) {
+        viewModelScope.launch {
+            userPreferencesRepository.setAlbumArtCacheLimitMb(limitMb)
+            com.theveloper.pixelplay.utils.AlbumArtCacheManager.configuredCacheLimitMb = limitMb.toLong()
         }
     }
 
@@ -1180,15 +1244,22 @@ class SettingsViewModel @Inject constructor(
                 operation = BackupOperationType.EXPORT,
                 step = 0,
                 totalSteps = 1,
-                title = "Preparing backup",
-                detail = "Starting backup task."
+                title = context.getString(R.string.backup_progress_preparing_backup),
+                detail = context.getString(R.string.backup_progress_starting_backup_task),
             )
             val result = backupManager.export(uri, sections) { progress ->
                 _dataTransferProgress.value = progress
             }
             result.fold(
-                onSuccess = { _dataTransferEvents.emit("Data exported successfully") },
-                onFailure = { _dataTransferEvents.emit("Export failed: ${it.localizedMessage ?: "Unknown error"}") }
+                onSuccess = { _dataTransferEvents.emit(context.getString(R.string.data_exported_successfully)) },
+                onFailure = {
+                    _dataTransferEvents.emit(
+                        context.getString(
+                            R.string.export_failed_format,
+                            it.localizedMessage ?: context.getString(R.string.error_unknown),
+                        ),
+                    )
+                },
             )
             delay(300)
             _uiState.update { it.copy(isDataTransferInProgress = false) }
@@ -1206,7 +1277,12 @@ class SettingsViewModel @Inject constructor(
                     _uiState.update { it.copy(restorePlan = plan, isInspectingBackup = false) }
                 },
                 onFailure = { error ->
-                    _dataTransferEvents.emit("Invalid backup: ${error.localizedMessage ?: "Unknown error"}")
+                    _dataTransferEvents.emit(
+                        context.getString(
+                            R.string.backup_invalid_format,
+                            error.localizedMessage ?: context.getString(R.string.error_unknown),
+                        ),
+                    )
                     _uiState.update { it.copy(isInspectingBackup = false) }
                 }
             )
@@ -1230,28 +1306,28 @@ class SettingsViewModel @Inject constructor(
                 operation = BackupOperationType.IMPORT,
                 step = 0,
                 totalSteps = 1,
-                title = "Preparing restore",
-                detail = "Starting restore task."
+                title = context.getString(R.string.backup_progress_preparing_restore),
+                detail = context.getString(R.string.backup_progress_starting_task),
             )
             val result = backupManager.restore(uri, plan) { progress ->
                 _dataTransferProgress.value = progress
             }
             when (result) {
                 is RestoreResult.Success -> {
-                    _dataTransferEvents.emit("Data restored successfully")
+                    _dataTransferEvents.emit(context.getString(R.string.data_restored_successfully))
                     syncManager.sync()
                 }
                 is RestoreResult.PartialFailure -> {
                     val failedNames = result.failed.entries.joinToString { "${it.key.label}: ${it.value}" }
                     _dataTransferEvents.emit(
-                        "Restore completed with unresolved issues. Failed: $failedNames"
+                        context.getString(R.string.restore_partial_unresolved_format, failedNames),
                     )
                     if (result.succeeded.isNotEmpty() || !result.rolledBack) {
                         syncManager.sync()
                     }
                 }
                 is RestoreResult.TotalFailure -> {
-                    _dataTransferEvents.emit("Restore failed: ${result.error}")
+                    _dataTransferEvents.emit(context.getString(R.string.restore_failed_format, result.error))
                 }
             }
             delay(300)
