@@ -9,8 +9,9 @@ object AppLanguage {
     const val SPANISH = "es"
     const val FRENCH = "fr"
     const val RUSSIAN = "ru"
+    const val CHINESE = "zh-CN"
 
-    val supportedLanguageTags: Set<String> = setOf(SYSTEM, ENGLISH, SPANISH, FRENCH, RUSSIAN)
+    val supportedLanguageTags: Set<String> = setOf(SYSTEM, ENGLISH, SPANISH, CHINESE, FRENCH, RUSSIAN)
 
     fun getLanguageOptions(context: Context): Map<String, String> {
         return mapOf(
