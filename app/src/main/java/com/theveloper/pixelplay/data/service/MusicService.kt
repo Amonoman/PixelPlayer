@@ -1102,7 +1102,6 @@ class MusicService : MediaLibraryService() {
      * Reads RG tags from the file and adjusts player.volume accordingly.
      */
     private fun applyReplayGain(mediaItem: MediaItem?) {
-        val player = engine.masterPlayer
         replayGainJob?.cancel()
         replayGainRequestToken += 1
         val requestToken = replayGainRequestToken
@@ -1114,7 +1113,7 @@ class MusicService : MediaLibraryService() {
         if (!replayGainEnabled) {
             pendingReplayGainVolume = null
             if (!engine.isTransitionRunning()) {
-                setPlayerVolume(player, userSelectedVolume)
+                setPlayerVolume(engine.masterPlayer, userSelectedVolume)
             }
             return
         }
@@ -1126,7 +1125,7 @@ class MusicService : MediaLibraryService() {
         if (filePath.isNullOrBlank()) {
             Timber.tag(TAG).d("ReplayGain: No file path for track, keeping user-selected volume")
             if (!engine.isTransitionRunning()) {
-                setPlayerVolume(player, userSelectedVolume)
+                setPlayerVolume(engine.masterPlayer, userSelectedVolume)
             }
             return
         }
@@ -1154,14 +1153,18 @@ class MusicService : MediaLibraryService() {
             )
 
             if (engine.isTransitionRunning()) {
-                // Store for application after transition completes
+                // Store for application after transition completes.
+                // If the transition was interrupted (e.g. user skipped during crossfade),
+                // onTransitionFinished() may never fire for this pending value — so we
+                // also apply it immediately to masterPlayer so volume is never lost.
                 pendingReplayGainVolume = volume
-                Timber.tag(TAG).d("ReplayGain: Stored pending volume=%.2f for %s (transition running)",
+                setPlayerVolume(engine.masterPlayer, volume)
+                Timber.tag(TAG).d("ReplayGain: Applied + stored pending volume=%.2f for %s (transition running)",
                     volume, mediaItem.mediaMetadata.title
                 )
             } else {
                 pendingReplayGainVolume = null
-                setPlayerVolume(player, volume)
+                setPlayerVolume(engine.masterPlayer, volume)
                 Timber.tag(TAG).d("ReplayGain: Applied volume=%.2f for %s",
                     volume, mediaItem.mediaMetadata.title
                 )
@@ -1187,8 +1190,11 @@ class MusicService : MediaLibraryService() {
         }
 
         if (pending != null) {
+            // pending was already applied to masterPlayer during the transition to ensure
+            // volume is never lost if the transition was interrupted (e.g. user skipped).
+            // Re-applying here is a no-op in volume terms but confirms the final state.
             setPlayerVolume(player, pending)
-            Timber.tag(TAG).d("ReplayGain: Transition finished, applied pending volume=%.2f", pending)
+            Timber.tag(TAG).d("ReplayGain: Transition finished, confirmed pending volume=%.2f", pending)
         } else {
             // No pending volume was computed during transition, trigger full computation
             applyReplayGain(mediaSession?.player?.currentMediaItem)
