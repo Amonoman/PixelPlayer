@@ -42,11 +42,12 @@ class PlaybackStateHolder @Inject constructor(
     companion object {
         private const val TAG = "PlaybackStateHolder"
         private const val DURATION_MISMATCH_TOLERANCE_MS = 1500L
-        // 500 ms keeps the progress bar/time display smooth to the eye (it still updates twice
-        // per second) while halving Compose recomposition pressure vs. the old 250 ms tick.
-        // The visual slider uses frame-clock interpolation on top of this, so the animation
-        // stays fluid even at a slower underlying cadence.
-        private const val FOREGROUND_PROGRESS_TICK_MS = 500L
+        // 250 ms keeps the slider/time display visibly smooth. We tried 500 ms to lower
+        // Compose recomposition pressure, but the smooth-progress sampler does not actually
+        // interpolate between source samples — it polls — so a 500 ms source cadence made the
+        // slider stutter in half-second jumps. Background tick is throttled to 1 s since the
+        // screen is off and no slider is visible.
+        private const val FOREGROUND_PROGRESS_TICK_MS = 250L
         private const val BACKGROUND_PROGRESS_TICK_MS = 1000L
         /**
          * Threshold above which we skip per-item moveMediaItem calls and use
