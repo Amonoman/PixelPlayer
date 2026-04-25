@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Web login security notes (QQ / NetEase) -->
+    <string name="auth_web_login_security_note_qq">Remarque de sécurité : votre mot de passe est saisi uniquement sur les pages QQ Music. PixelPlayer stocke les cookies de session pour synchroniser votre bibliothèque.</string>
+    <string name="auth_web_login_security_note_netease">Remarque de sécurité : votre mot de passe est saisi uniquement sur les pages NetEase. PixelPlayer stocke les cookies de session (MUSIC_U) pour synchroniser votre bibliothèque.</string>
+    <string name="auth_error_read_qq_cookies_failed">Échec de lecture des cookies QQ Music : %1$s</string>
+    <string name="auth_error_read_netease_cookies_failed">Échec de lecture des cookies NetEase : %1$s</string>
+
+    <!-- Google Drive folder setup -->
+    <string name="auth_gdrive_setting_up">Configuration de Google Drive…</string>
+    <string name="auth_gdrive_connect_title">Connecter Google Drive</string>
+    <string name="auth_gdrive_connect_subtitle">Diffuser les fichiers musicaux directement depuis Google Drive</string>
+    <string name="auth_gdrive_sign_in_with_google">Se connecter avec Google</string>
+    <string name="auth_gdrive_select_music_folder_title">Sélectionner un dossier musical</string>
+    <string name="auth_gdrive_select_music_folder_subtitle">Choisissez ou créez un dossier à utiliser comme source musicale</string>
+    <string name="auth_gdrive_create_pixelplay_music_title">Créer "PixelPlay Music"</string>
+    <string name="auth_gdrive_create_folder_here_hint">Créez un nouveau dossier ici pour votre musique</string>
+    <string name="auth_gdrive_no_folders_here">Aucun dossier ici</string>
+    <string name="auth_gdrive_use_this_folder">Utiliser</string>
+    <string name="auth_gdrive_cd_open_folder">Ouvrir le dossier</string>
+</resources>

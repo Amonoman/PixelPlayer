@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Library list errors -->
+    <string name="library_error_loading_songs">Erreur lors du chargement des chansons</string>
+    <string name="library_error_loading_albums">Erreur lors du chargement des albums</string>
+    <string name="library_error_loading_artists">Erreur lors du chargement des artistes</string>
+    <string name="library_retry">Réessayer</string>
+
+    <!-- Library empty (paginated) -->
+    <string name="library_no_songs_in_library_message">Aucune chanson trouvée dans votre bibliothèque.</string>
+    <string name="library_no_songs_rescan_hint">Essayez de rescanner votre bibliothèque dans les paramètres si vous avez de la musique sur votre appareil.</string>
+    <string name="cd_no_songs_in_library">Aucune chanson trouvée</string>
+
+    <!-- Library action row -->
+    <string name="library_action_new">Nouveau</string>
+    <string name="cd_create_new_playlist">Créer une nouvelle playlist</string>
+    <string name="cd_import_m3u_playlist">Importer une playlist M3U</string>
+    <string name="cd_locate_current_song">Localiser la chanson en cours</string>
+    <string name="library_storage_filter_all_songs">Toutes les chansons</string>
+    <string name="library_storage_filter_online">En ligne</string>
+    <string name="library_storage_filter_offline">Hors ligne</string>
+    <string name="cd_sort_options">Options de tri</string>
+
+    <!-- Fetch lyrics (manual search fields) -->
+    <string name="lyrics_synced_badge">SYNCHRONISÉ</string>
+    <string name="song_field_artist_optional">Artiste (optionnel)</string>
+
+    <!-- Song picker -->
+    <string name="song_picker_title">Ajouter des chansons</string>
+    <string name="cd_confirm_add_songs">Ajouter les chansons sélectionnées</string>
+    <string name="song_picker_action_add">Ajouter</string>
+    <string name="song_picker_search_label">Rechercher des chansons…</string>
+    <string name="song_picker_error_load_failed">Échec du chargement des chansons</string>
+    <string name="song_picker_load_more">Charger plus</string>
+
+    <!-- AI playlist sheet -->
+    <string name="cd_ai">IA</string>
+    <string name="ai_playlist_headline_perfect">Parfaitement sélectionné</string>
+    <string name="ai_playlist_headline_daily_mix">Mix quotidien</string>
+    <string name="ai_playlist_subtitle_journey_ready">Votre parcours sonore est prêt</string>
+    <string name="ai_playlist_subtitle_generator">Générateur de playlists IA</string>
+    <string name="ai_playlist_description">Décrivez l'ambiance, l'humeur ou l'activité et laissez l'IA créer la playlist parfaite à partir de votre bibliothèque.</string>
+    <string name="ai_playlist_section_size">Taille de la playlist</string>
+    <string name="ai_playlist_min_songs">Min chansons</string>
+    <string name="ai_playlist_max_songs">Max chansons</string>
+    <string name="ai_playlist_prompt_placeholder">ex. Ambiance détente du soir, énergie pour l'entraînement…</string>
+    <string name="ai_playlist_tap_to_retry">Appuyez pour réessayer</string>
+    <string name="ai_playlist_status_default">Parcours sonore synthétisé !</string>
+    <string name="ai_playlist_generating">Génération…</string>
+    <string name="ai_playlist_ready_to_play">Prêt à jouer</string>
+    <string name="ai_playlist_generate">Générer la playlist</string>
+</resources>
