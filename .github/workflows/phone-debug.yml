@@ -26,7 +26,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Phone debug APK
-        run: ./gradlew :app:assembleDebug
+        run: ./gradlew :app:assembleDebug --stacktrace --info --no-daemon
 
       - name: Upload Phone APK artifact
         uses: actions/upload-artifact@v7
