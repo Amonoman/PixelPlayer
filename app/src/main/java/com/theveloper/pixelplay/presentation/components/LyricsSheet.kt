@@ -69,14 +69,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.animation.core.Animatable
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.input.pointer.consumePositionChange
@@ -182,10 +180,10 @@ fun LyricsSheet(
     BackHandler { onBackClick() }
     val stablePlayerState by stablePlayerStateFlow.collectAsStateWithLifecycle()
 
-    val isLoadingLyrics by remember { derivedStateOf { stablePlayerState.isLoadingLyrics } }
-    val lyrics by remember { derivedStateOf { stablePlayerState.lyrics } }
-    val isPlaying by remember { derivedStateOf { stablePlayerState.isPlaying } }
-    val currentSong by remember { derivedStateOf { stablePlayerState.currentSong } }
+    val isLoadingLyrics by remember(stablePlayerState) { derivedStateOf { stablePlayerState.isLoadingLyrics } }
+    val lyrics by remember(stablePlayerState) { derivedStateOf { stablePlayerState.lyrics } }
+    val isPlaying by remember(stablePlayerState) { derivedStateOf { stablePlayerState.isPlaying } }
+    val currentSong by remember(stablePlayerState) { derivedStateOf { stablePlayerState.currentSong } }
 
     val hasTranslatedLyrics = remember(lyrics) {
         // Translated lyrics read same timestamp on the lrc, not possible in plain type lyrics
@@ -285,7 +283,6 @@ fun LyricsSheet(
     val swipeProgress = remember { Animatable(0f) }
     val coroutineScope = rememberCoroutineScope()
 
-    // Auto-hide controls logic
     // Auto-hide controls logic
     LaunchedEffect(immersiveLyricsEnabled, lastInteractionTime, showSyncedLyrics, isImmersiveTemporarilyDisabled) {
         if (immersiveLyricsEnabled && showSyncedLyrics == true && !isImmersiveTemporarilyDisabled) {
@@ -403,9 +400,7 @@ fun LyricsSheet(
         )
     }
 
-
     
-
 
     Scaffold(
         modifier = modifier
@@ -503,7 +498,6 @@ fun LyricsSheet(
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .zIndex(2f)
-                        // .fillMaxWidth() removed to allow wrapping
                         .wrapContentWidth(),
                     label = "headerAnimation"
                 ) { song ->
@@ -517,12 +511,6 @@ fun LyricsSheet(
                             .background(
                                 color = backgroundColor,
                                 shape = CircleShape
-//                                shape = RoundedCornerShape(
-//                                    topStart = 16.dp,
-//                                    topEnd = 50.dp,
-//                                    bottomEnd = 50.dp,
-//                                    bottomStart = 16.dp
-//                                )
                             )
                             .wrapContentWidth()
                             .animateContentSize(), // Animate width changes
@@ -696,14 +684,7 @@ fun LyricsSheet(
                             }
                         }
                 ) {
-                // Sync Offset Controls (Visible only if synced lyrics are shown AND enabled via some toggle, 
-                // but user didn't specify a toggle for this in the new toolbar, just "encolumnada". 
-                // "no debemos perder acceos a las opciones actuales".
-                // I'll show them if showSyncedLyrics is true. Or maybe I should add a toggle in the toolbar?
-                // The prompt ends with "el Slider lo vas a cambiar por el WavySliderExpressive...".
-                // I will keep the offsets here.
-                
-                AnimatedVisibility(
+                                AnimatedVisibility(
                     visible = showSyncedLyrics == true && lyrics?.synced != null && showSyncControls,
                     enter = expandVertically() + fadeIn(),
                     exit = shrinkVertically() + fadeOut()
@@ -879,7 +860,6 @@ fun LyricsSheet(
                 )
             }
         }
-
 
        // Show Controls Button (Overlay)
        AnimatedVisibility(
@@ -1408,21 +1388,17 @@ fun LyricLineRow(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 sanitizedWordClusters.forEach { cluster ->
-                    key("${line.time}_${cluster.startIndex}") {
-                        Row {
-                            cluster.words.forEachIndexed { clusterOffset, word ->
-                                val wordIndex = cluster.startIndex + clusterOffset
-                                key("${line.time}_${word.time}_${word.word}_$wordIndex") {
-                                    LyricWordSpan(
-                                        word = word,
-                                        isHighlighted = isCurrentLine && wordIndex == highlightedWordIndex,
-                                        useAnimatedLyrics = useAnimatedLyrics,
-                                        style = style,
-                                        highlightedColor = accentColor,
-                                        unhighlightedColor = unhighlightedColor
-                                    )
-                                }
-                            }
+                    cluster.words.forEachIndexed { clusterOffset, word ->
+                        val wordIndex = cluster.startIndex + clusterOffset
+                        key("${line.time}_${word.time}_${word.word}_$wordIndex") {
+                            LyricWordSpan(
+                                word = word,
+                                isHighlighted = isCurrentLine && wordIndex == highlightedWordIndex,
+                                useAnimatedLyrics = useAnimatedLyrics,
+                                style = style,
+                                highlightedColor = accentColor,
+                                unhighlightedColor = unhighlightedColor
+                            )
                         }
                     }
                 }
@@ -1740,7 +1716,6 @@ internal fun resolveCurrentLineIndex(
         position in line.time.toLong()..<lineEndTime
     }?.index ?: -1
 }
-
 
 @Composable
 private fun LyricsTrackInfo(
