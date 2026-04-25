@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="presentation_batch_g_stats_range_today">Today</string>
-    <string name="presentation_batch_g_stats_range_week_to_date">Week to Date</string>
-    <string name="presentation_batch_g_stats_range_month_to_date">Month to Date</string>
-    <string name="presentation_batch_g_stats_range_year_to_date">Year to Date</string>
-    <string name="presentation_batch_g_stats_range_all_time">All Time</string>
-    <string name="presentation_batch_g_stats_title">Listening Stats</string>
-    <string name="presentation_batch_g_stats_cd_refresh">Refresh listening stats</string>
-    <string name="presentation_batch_g_stats_hero_listening">Listening</string>
-    <string name="presentation_batch_g_stats_hero_plays">Plays</string>
+    <string name="presentation_batch_g_stats_range_today">Aujourd\'hui</string>
+    <string name="presentation_batch_g_stats_range_week_to_date">Semaine à ce jour</string>
+    <string name="presentation_batch_g_stats_range_month_to_date">Mois à ce jour</string>
+    <string name="presentation_batch_g_stats_range_year_to_date">Année à ce jour</string>
+    <string name="presentation_batch_g_stats_range_all_time">Tous les temps</string>
+    <string name="presentation_batch_g_stats_title">Statistiques d\'écoute</string>
+    <string name="presentation_batch_g_stats_cd_refresh">Actualiser les statistiques d\'écoute</string>
+    <string name="presentation_batch_g_stats_hero_listening">Écoute</string>
+    <string name="presentation_batch_g_stats_hero_plays">Lectures</string>
     <string name="presentation_batch_g_stats_em_dash">—</string>
-    <string name="presentation_batch_g_stats_section_listening_habits">Listening habits</string>
-    <string name="presentation_batch_g_stats_empty_no_habits_title">No habits yet</string>
-    <string name="presentation_batch_g_stats_empty_no_habits_subtitle">We will surface your listening habits once we know you better.</string>
+    <string name="presentation_batch_g_stats_section_listening_habits">Habitudes d\'écoute</string>
+    <string name="presentation_batch_g_stats_empty_no_habits_title">Pas d\'habitudes encore</string>
+    <string name="presentation_batch_g_stats_empty_no_habits_subtitle">Nous afficherons vos habitudes d\'écoute une fois que nous vous connaîtrons mieux.</string>
     <string name="presentation_batch_g_stats_habit_total_sessions">Total sessions</string>
     <string name="presentation_batch_g_stats_habit_avg_session">Avg session</string>
     <string name="presentation_batch_g_stats_habit_longest_session">Longest session</string>
