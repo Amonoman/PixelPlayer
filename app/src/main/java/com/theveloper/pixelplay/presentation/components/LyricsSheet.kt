@@ -1397,6 +1397,7 @@ fun LyricLineRow(
             horizontalAlignment = horizontalAlignment
         ) {
             FlowRow(
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = when (lyricsAlignment) {
                     "center" -> Arrangement.spacedBy(3.dp, Alignment.CenterHorizontally)
                     "right" -> Arrangement.spacedBy(3.dp, Alignment.End)
