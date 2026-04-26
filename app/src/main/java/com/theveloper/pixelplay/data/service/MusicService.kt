@@ -261,12 +261,24 @@ class MusicService : MediaLibraryService() {
             // isTransitionRunning() is true here, so applyReplayGain stores the result as
             // pendingReplayGainVolume. onTransitionFinished() applies it cleanly once the fade
             // loop ends, avoiding any volume jump on the incoming track.
-            applyReplayGain(newPlayer.currentMediaItem)
+            //
+            // Also try to set incomingTrackReplayGainVolume immediately from cache so the
+            // fade loop can use the correct final volume even before the IO coroutine finishes.
+            val incomingItem = newPlayer.currentMediaItem
+            val cachedVolume = getCachedReplayGainVolume(incomingItem)
+            if (cachedVolume != null) {
+                engine.incomingTrackReplayGainVolume = cachedVolume
+            }
+            applyReplayGain(incomingItem)
         }
     }
 
     private val transitionFinishedListener: () -> Unit = {
-        onTransitionFinished()
+        // Dispatch to Main so it runs after any pending playerSwapListener coroutine
+        // has completed — otherwise onTransitionFinished() may see stale state.
+        serviceScope.launch(Dispatchers.Main) {
+            onTransitionFinished()
+        }
     }
 
     override fun onCreate() {
@@ -1226,6 +1238,19 @@ class MusicService : MediaLibraryService() {
                 )
             }
         }
+    }
+
+    /**
+     * Returns the cached ReplayGain volume for a media item if already computed, or null.
+     * Does NOT trigger an IO read — only reads from the in-memory cache.
+     */
+    private fun getCachedReplayGainVolume(mediaItem: MediaItem?): Float? {
+        if (!replayGainEnabled || mediaItem == null) return null
+        val filePath = mediaItem.mediaMetadata.extras
+            ?.getString(MediaItemBuilder.EXTERNAL_EXTRA_FILE_PATH) ?: return null
+        if (filePath.isBlank()) return null
+        val cached = replayGainManager.getCachedReplayGain(filePath) ?: return null
+        return replayGainManager.getVolumeMultiplier(cached, useAlbumGain = replayGainUseAlbumGain)
     }
 
     /**

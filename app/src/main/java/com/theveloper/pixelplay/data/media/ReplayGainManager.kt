@@ -57,11 +57,23 @@ class ReplayGainManager @Inject constructor() {
      * Reads ReplayGain tags from the audio file at the given path.
      * Returns null if the file can't be read or no RG tags are found.
      */
+    /**
+     * Returns the cached ReplayGain values for the given path without triggering an IO read.
+     * Returns null if the file has not been read yet.
+     */
+    fun getCachedReplayGain(filePath: String): ReplayGainValues? {
+        if (filePath.isBlank()) return null
+        return synchronized(cache) { cache[filePath] }
+    }
+
     fun readReplayGain(filePath: String): ReplayGainValues? {
         if (filePath.isBlank()) return null
 
         // Return cached value if available — avoids expensive JNI tag read on repeat/resume
-        synchronized(cache) { cache[filePath] }?.let { return it }
+        synchronized(cache) { cache[filePath] }?.let {
+            Timber.tag(TAG).d("Cache hit for ${File(filePath).name}")
+            return it
+        }
 
         val file = File(filePath)
         if (!file.exists() || !file.canRead()) return null

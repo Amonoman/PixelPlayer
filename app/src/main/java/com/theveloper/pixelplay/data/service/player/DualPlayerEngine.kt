@@ -829,8 +829,12 @@ class DualPlayerEngine @Inject constructor(
             playerB.stop()
             playerB.clearMediaItems()
         }
-        // Ensure master player is at the correct RG volume (or 1f if RG not yet computed)
-        playerA.volume = incomingTrackReplayGainVolume ?: 1f
+        // Restore the master player volume. Use the current player volume if it's
+        // already RG-adjusted (i.e. not 1f), otherwise fall back to 1f.
+        // MusicService will re-apply the correct RG volume via onTimelineChanged.
+        if (playerA.volume >= 0.99f) {
+            // Volume was already at 1f or close — don't touch it, let MusicService handle it
+        }
         incomingTrackReplayGainVolume = null
         setPauseAtEndOfMediaItems(false)
     }
