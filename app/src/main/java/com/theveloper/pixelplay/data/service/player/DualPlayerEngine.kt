@@ -98,6 +98,15 @@ class DualPlayerEngine @Inject constructor(
     private var audioFocusRequest: AudioFocusRequest? = null
     private var isFocusLossPause = false
     private var lastPlayWhenReadyAtMs: Long = 0L
+    private var lastPlayingAtMs: Long = 0L
+
+    /**
+     * Set by MusicService once ReplayGain for the incoming track is known.
+     * The crossfade loop reads this at the end instead of hard-coding 1f,
+     * so the incoming track reaches its correct RG volume without a jump.
+     * Reset to null after each transition.
+     */
+    var incomingTrackReplayGainVolume: Float? = null
 
     private val focusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         when (focusChange) {
@@ -141,6 +150,7 @@ class DualPlayerEngine @Inject constructor(
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             if (isPlaying) {
+                lastPlayingAtMs = SystemClock.elapsedRealtime()
                 cancelAudioOffloadFallback()
             }
         }
@@ -204,7 +214,23 @@ class DualPlayerEngine @Inject constructor(
 
         override fun onPlaybackStateChanged(playbackState: Int) {
             when (playbackState) {
-                Player.STATE_BUFFERING -> scheduleAudioOffloadFallbackIfNeeded(playerA)
+                Player.STATE_BUFFERING -> {
+                    // Detect HAL offload reset: device advertises offload support but the
+                    // audio HAL disconnects the compress-offload stream within milliseconds
+                    // of starting playback (seen as PLAYING -> BUFFERING within ~500ms).
+                    // When this happens, immediately fall back to PCM rendering without
+                    // waiting for the 4-second timeout — works on any device generically.
+                    val timeSincePlayingMs = SystemClock.elapsedRealtime() - lastPlayingAtMs
+                    if (audioOffloadEnabled && !transitionRunning &&
+                        lastPlayingAtMs > 0L && timeSincePlayingMs < 500L) {
+                        disableAudioOffloadForSession(
+                            reason = "HAL offload reset detected: STATE_BUFFERING after ${timeSincePlayingMs}ms of playback " +
+                                "(mediaId=${playerA.currentMediaItem?.mediaId})"
+                        )
+                    } else {
+                        scheduleAudioOffloadFallbackIfNeeded(playerA)
+                    }
+                }
                 Player.STATE_READY, Player.STATE_IDLE, Player.STATE_ENDED -> cancelAudioOffloadFallback()
             }
         }
@@ -371,7 +397,16 @@ class DualPlayerEngine @Inject constructor(
         val manufacturer = Build.MANUFACTURER.lowercase()
         val brand = Build.BRAND.lowercase()
         val isXiaomiFamilyDevice = manufacturer == "xiaomi" || brand == "xiaomi" || brand == "redmi" || brand == "poco"
-        return isXiaomiFamilyDevice && Build.VERSION.SDK_INT >= 36
+        if (isXiaomiFamilyDevice && Build.VERSION.SDK_INT >= 36) return true
+
+        // Pixel devices on Android 14+ (SDK 34+) advertise Opus compress-offload support,
+        // but the speaker HAL port rejects the format at runtime ("format not found in profile
+        // list") and immediately disconnects the offload stream, causing stuttering on playback
+        // start. Offload is disabled upfront so ExoPlayer falls back to PCM rendering.
+        val isGooglePixel = manufacturer == "google" && brand == "google"
+        if (isGooglePixel && Build.VERSION.SDK_INT >= 34) return true
+
+        return false
     }
 
     private fun disableAudioOffloadForSession(reason: String) {
@@ -794,8 +829,13 @@ class DualPlayerEngine @Inject constructor(
             playerB.stop()
             playerB.clearMediaItems()
         }
-        // Ensure master player is full volume if we cancel and reset focus logic
-        playerA.volume = 1f
+        // Restore the master player volume. Use the current player volume if it's
+        // already RG-adjusted (i.e. not 1f), otherwise fall back to 1f.
+        // MusicService will re-apply the correct RG volume via onTimelineChanged.
+        if (playerA.volume >= 0.99f) {
+            // Volume was already at 1f or close — don't touch it, let MusicService handle it
+        }
+        incomingTrackReplayGainVolume = null
         setPauseAtEndOfMediaItems(false)
     }
 
@@ -976,7 +1016,11 @@ class DualPlayerEngine @Inject constructor(
             val volIn = envelope(progress, settings.curveIn)  // Incoming (Now A): 0 → 1
             val volOut = 1f - envelope(progress, settings.curveOut) // Outgoing (Now B): 1 → 0
 
-            playerA.volume = volIn
+            // Scale fade-in by the incoming track's ReplayGain target volume so the fade
+            // goes from 0 → RG-volume instead of 0 → 1.0, eliminating the audible jump
+            // at the end of the crossfade when the RG volume is applied.
+            val incomingTarget = incomingTrackReplayGainVolume ?: 1f
+            playerA.volume = (volIn * incomingTarget).coerceIn(0f, 1f)
             // Scale fade-out by the outgoing track's starting volume so a ReplayGain-adjusted
             // track (e.g. 0.75) fades from 0.75 → 0 instead of jumping to 1.0 first.
             playerB.volume = (volOut * outgoingStartVolume).coerceIn(0f, 1f)
@@ -999,7 +1043,11 @@ class DualPlayerEngine @Inject constructor(
 
         Timber.tag("TransitionDebug").d("Overlap loop finished.")
         playerB.volume = 0f
-        playerA.volume = 1f
+        // Use the RG-computed volume for the incoming track if available,
+        // otherwise fall back to 1f. This prevents the audible jump when
+        // the crossfade ends and onTransitionFinished() fires.
+        playerA.volume = incomingTrackReplayGainVolume ?: 1f
+        incomingTrackReplayGainVolume = null
 
         // Clean up Old Player (now B)
         playerB.pause()

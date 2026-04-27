@@ -1,4 +1,4 @@
-name: Build Wear OS APK (Debug)
+name: Build Phone APK (Release)
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-wear:
+  build-phone:
     runs-on: ubuntu-latest
 
     steps:
@@ -25,11 +25,12 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build Wear OS debug APK
-        run: ./gradlew :wear:assembleDebug
+      - name: Build Phone release APK
+        run: ./gradlew :app:assembleRelease
 
-      - name: Upload Wear OS APK artifact
+      - name: Upload Phone APK artifact
         uses: actions/upload-artifact@v4.6.1
         with:
-          name: PixelPlay-wear-only-debug
-          path: wear/build/outputs/apk/debug/*.apk
+          name: PixelPlay-phone-only-release
+          path: app/build/outputs/apk/release/*.apk
+          

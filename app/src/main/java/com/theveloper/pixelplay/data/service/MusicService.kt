@@ -139,6 +139,11 @@ class MusicService : MediaLibraryService() {
     private var userSelectedVolume = 1f
     private var expectedReplayGainVolume: Float? = null
     private var pendingReplayGainVolume: Float? = null
+    // Last successfully applied RG volume — used to avoid a full-volume spike
+    // during the IO read for the next track (Repeat/Shuffle/Queue changes).
+    private var lastAppliedReplayGainVolume: Float? = null
+    // MediaId for which lastAppliedReplayGainVolume was computed.
+    private var lastReplayGainMediaId: String? = null
 
     private var favoriteSongIds = emptySet<String>()
     private var mediaSession: MediaLibraryService.MediaLibrarySession? = null
@@ -256,12 +261,24 @@ class MusicService : MediaLibraryService() {
             // isTransitionRunning() is true here, so applyReplayGain stores the result as
             // pendingReplayGainVolume. onTransitionFinished() applies it cleanly once the fade
             // loop ends, avoiding any volume jump on the incoming track.
-            applyReplayGain(newPlayer.currentMediaItem)
+            //
+            // Also try to set incomingTrackReplayGainVolume immediately from cache so the
+            // fade loop can use the correct final volume even before the IO coroutine finishes.
+            val incomingItem = newPlayer.currentMediaItem
+            val cachedVolume = getCachedReplayGainVolume(incomingItem)
+            if (cachedVolume != null) {
+                engine.incomingTrackReplayGainVolume = cachedVolume
+            }
+            applyReplayGain(incomingItem)
         }
     }
 
     private val transitionFinishedListener: () -> Unit = {
-        onTransitionFinished()
+        // Dispatch to Main so it runs after any pending playerSwapListener coroutine
+        // has completed — otherwise onTransitionFinished() may see stale state.
+        serviceScope.launch(Dispatchers.Main) {
+            onTransitionFinished()
+        }
     }
 
     override fun onCreate() {
@@ -973,9 +990,7 @@ class MusicService : MediaLibraryService() {
 
     private val playerListener = object : Player.Listener {
         override fun onVolumeChanged(volume: Float) {
-            if (engine.isTransitionRunning()) {
-                return
-            }
+            if (engine.isTransitionRunning()) return
             val expectedVolume = expectedReplayGainVolume
             if (expectedVolume != null && abs(expectedVolume - volume) < 0.001f) {
                 expectedReplayGainVolume = null
@@ -988,6 +1003,12 @@ class MusicService : MediaLibraryService() {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             val player = engine.masterPlayer
             Timber.tag(TAG).d("onIsPlayingChanged: $isPlaying. Duration: ${player.duration}, Seekable: ${player.isCurrentMediaItemSeekable}")
+            // Re-apply the last known RG volume immediately when resuming playback.
+            // After a pause, ExoPlayer may reset the audio track volume internally,
+            // causing a brief full-volume spike before the IO coroutine finishes.
+            if (isPlaying && !engine.isTransitionRunning()) {
+                lastAppliedReplayGainVolume?.let { setPlayerVolume(player, it) }
+            }
             // Push state immediately so the watch can foreground PixelPlay before
             // system media surfaces take over.
             requestWidgetFullUpdate(force = true)
@@ -1006,12 +1027,15 @@ class MusicService : MediaLibraryService() {
                 }
                 else -> clearHeadsetReconnectResume()
             }
+            requestWidgetFullUpdate(force = true)
+            mediaSession?.let { refreshMediaSessionUi(it) }
+            schedulePlaybackSnapshotPersist()
         }
-        
+
         override fun onAvailableCommandsChanged(availableCommands: Player.Commands) {
-             val canSeek = availableCommands.contains(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
-             val player = engine.masterPlayer
-             Timber.tag(TAG).w("onAvailableCommandsChanged. Can Seek Command? $canSeek. IsSeekable? ${player.isCurrentMediaItemSeekable}. Duration: ${player.duration}")
+            val canSeek = availableCommands.contains(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
+            val player = engine.masterPlayer
+            Timber.tag(TAG).w("onAvailableCommandsChanged. Can Seek Command? $canSeek. IsSeekable? ${player.isCurrentMediaItemSeekable}. Duration: ${player.duration}")
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -1026,9 +1050,39 @@ class MusicService : MediaLibraryService() {
         override fun onTimelineChanged(timeline: Timeline, reason: Int) {
             requestWidgetFullUpdate(force = true)
             schedulePlaybackSnapshotPersist(immediate = timeline.isEmpty)
+            // Pre-fetch RG for the next track so the cache is warm before playback starts
+            val player = engine.masterPlayer
+            val nextIndex = player.nextMediaItemIndex
+            if (nextIndex != androidx.media3.common.C.INDEX_UNSET) {
+                runCatching { prefetchReplayGain(player.getMediaItemAt(nextIndex)) }
+            }
         }
 
-        override fun onMediaItemTransition(item: MediaItem?, reason: Int) {
+        override fun onPositionDiscontinuity(
+            oldPosition: Player.PositionInfo,
+            newPosition: Player.PositionInfo,
+            reason: Int
+        ) {
+            if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION ||
+                reason == Player.DISCONTINUITY_REASON_SEEK
+            ) {
+                val currentItem = mediaSession?.player?.currentMediaItem
+                val oldMediaId = oldPosition.mediaItem?.mediaId
+                val newMediaId = newPosition.mediaItem?.mediaId
+                if (oldMediaId != null && oldMediaId == newMediaId) {
+                    // Same track (e.g. repeat, seek) — no IO needed, apply last known RG volume
+                    // immediately to avoid a spike while the coroutine reads tags again.
+                    lastAppliedReplayGainVolume?.let {
+                        if (!engine.isTransitionRunning()) setPlayerVolume(engine.masterPlayer, it)
+                    }
+                } else {
+                    // Different track — full recompute needed
+                    applyReplayGain(currentItem)
+                }
+            }
+        }
+
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             val eotTargetSongId = endOfTrackTimerSongId
             if (!eotTargetSongId.isNullOrBlank()) {
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
@@ -1045,10 +1099,17 @@ class MusicService : MediaLibraryService() {
                         engine.masterPlayer.pause()
                         Timber.tag(TAG).d("Paused playback at end of track from Wear timer")
                     }
-                } else if (item?.mediaId != eotTargetSongId) {
+                } else if (mediaItem?.mediaId != eotTargetSongId) {
                     endOfTrackTimerSongId = null
                     Timber.tag(TAG).d("Cleared end-of-track timer after manual track change")
                 }
+            }
+            applyReplayGain(mediaSession?.player?.currentMediaItem)
+            // Pre-fetch RG for the track after this one so it's cached when needed
+            val player = engine.masterPlayer
+            val nextIndex = player.nextMediaItemIndex
+            if (nextIndex != androidx.media3.common.C.INDEX_UNSET) {
+                runCatching { prefetchReplayGain(player.getMediaItemAt(nextIndex)) }
             }
             requestWidgetAndWearRefreshWithFollowUp()
             mediaSession?.let { refreshMediaSessionUiWithFollowUp(it) }
@@ -1060,8 +1121,17 @@ class MusicService : MediaLibraryService() {
             // Force an immediate publish for real-time watch metadata.
             requestWidgetFullUpdate(force = true)
             mediaSession?.let { refreshMediaSessionUiWithFollowUp(it) }
-            // Apply ReplayGain volume adjustment for the new track
-            applyReplayGain(mediaSession?.player?.currentMediaItem)
+            // Only recompute RG if the track actually changed — onMediaMetadataChanged
+            // also fires on queue edits (add/remove) without a track change, which would
+            // launch a redundant IO coroutine and cause a brief volume spike.
+            val currentMediaId = mediaSession?.player?.currentMediaItem?.mediaId
+            if (currentMediaId != null && currentMediaId != lastReplayGainMediaId) {
+                applyReplayGain(mediaSession?.player?.currentMediaItem)
+            } else if (currentMediaId != null) {
+                lastAppliedReplayGainVolume?.let {
+                    if (!engine.isTransitionRunning()) setPlayerVolume(engine.masterPlayer, it)
+                }
+            }
         }
 
         override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
@@ -1088,7 +1158,6 @@ class MusicService : MediaLibraryService() {
      * Reads RG tags from the file and adjusts player.volume accordingly.
      */
     private fun applyReplayGain(mediaItem: MediaItem?) {
-        val player = engine.masterPlayer
         replayGainJob?.cancel()
         replayGainRequestToken += 1
         val requestToken = replayGainRequestToken
@@ -1100,7 +1169,7 @@ class MusicService : MediaLibraryService() {
         if (!replayGainEnabled) {
             pendingReplayGainVolume = null
             if (!engine.isTransitionRunning()) {
-                setPlayerVolume(player, userSelectedVolume)
+                setPlayerVolume(engine.masterPlayer, userSelectedVolume)
             }
             return
         }
@@ -1112,12 +1181,19 @@ class MusicService : MediaLibraryService() {
         if (filePath.isNullOrBlank()) {
             Timber.tag(TAG).d("ReplayGain: No file path for track, keeping user-selected volume")
             if (!engine.isTransitionRunning()) {
-                setPlayerVolume(player, userSelectedVolume)
+                setPlayerVolume(engine.masterPlayer, userSelectedVolume)
             }
             return
         }
 
         val useAlbumGain = replayGainUseAlbumGain
+
+        // Apply the last known RG volume immediately so there is no full-volume spike
+        // while the IO coroutine reads the tags for the new track.
+        if (!engine.isTransitionRunning()) {
+            lastAppliedReplayGainVolume?.let { setPlayerVolume(engine.masterPlayer, it) }
+        }
+
         // Read ReplayGain tags on IO thread to avoid blocking main
         replayGainJob = serviceScope.launch {
             val rgValues = withContext(Dispatchers.IO) {
@@ -1140,18 +1216,55 @@ class MusicService : MediaLibraryService() {
             )
 
             if (engine.isTransitionRunning()) {
-                // Store for application after transition completes
+                // Store for application after transition completes.
+                // Also pass to engine so the crossfade loop ends at the correct RG
+                // volume instead of hard-coding 1f, preventing the audible jump.
                 pendingReplayGainVolume = volume
-                Timber.tag(TAG).d("ReplayGain: Stored pending volume=%.2f for %s (transition running)",
+                engine.incomingTrackReplayGainVolume = volume
+                // Apply immediately to masterPlayer so volume is never lost if the
+                // transition is interrupted (e.g. user skips during crossfade).
+                setPlayerVolume(engine.masterPlayer, volume)
+                Timber.tag(TAG).d("ReplayGain: Applied + stored pending volume=%.2f for %s (transition running)",
                     volume, mediaItem.mediaMetadata.title
                 )
             } else {
                 pendingReplayGainVolume = null
-                setPlayerVolume(player, volume)
+                engine.incomingTrackReplayGainVolume = null
+                lastAppliedReplayGainVolume = volume
+                lastReplayGainMediaId = mediaId
+                setPlayerVolume(engine.masterPlayer, volume)
                 Timber.tag(TAG).d("ReplayGain: Applied volume=%.2f for %s",
                     volume, mediaItem.mediaMetadata.title
                 )
             }
+        }
+    }
+
+    /**
+     * Returns the cached ReplayGain volume for a media item if already computed, or null.
+     * Does NOT trigger an IO read — only reads from the in-memory cache.
+     */
+    private fun getCachedReplayGainVolume(mediaItem: MediaItem?): Float? {
+        if (!replayGainEnabled || mediaItem == null) return null
+        val filePath = mediaItem.mediaMetadata.extras
+            ?.getString(MediaItemBuilder.EXTERNAL_EXTRA_FILE_PATH) ?: return null
+        if (filePath.isBlank()) return null
+        val cached = replayGainManager.getCachedReplayGain(filePath) ?: return null
+        return replayGainManager.getVolumeMultiplier(cached, useAlbumGain = replayGainUseAlbumGain)
+    }
+
+    /**
+     * Pre-fetches ReplayGain tags for a media item into the cache without applying the volume.
+     * Called on queue changes and track transitions so the cache is warm by the time
+     * applyReplayGain() runs, avoiding the 1-2s JNI read delay on playback start.
+     */
+    private fun prefetchReplayGain(mediaItem: MediaItem?) {
+        if (!replayGainEnabled || mediaItem == null) return
+        val filePath = mediaItem.mediaMetadata.extras
+            ?.getString(MediaItemBuilder.EXTERNAL_EXTRA_FILE_PATH) ?: return
+        if (filePath.isBlank()) return
+        serviceScope.launch(Dispatchers.IO) {
+            replayGainManager.readReplayGain(filePath)
         }
     }
 
@@ -1173,8 +1286,15 @@ class MusicService : MediaLibraryService() {
         }
 
         if (pending != null) {
+            // pending was already applied to masterPlayer during the transition to ensure
+            // volume is never lost if the transition was interrupted (e.g. user skipped).
+            // Re-applying here is a no-op in volume terms but confirms the final state.
+            // Also update lastAppliedReplayGainVolume so any subsequent onPositionDiscontinuity
+            // (REASON_AUTO_TRANSITION fires right after crossfade ends) uses this value
+            // immediately instead of launching a new IO coroutine and causing a spike.
+            lastAppliedReplayGainVolume = pending
             setPlayerVolume(player, pending)
-            Timber.tag(TAG).d("ReplayGain: Transition finished, applied pending volume=%.2f", pending)
+            Timber.tag(TAG).d("ReplayGain: Transition finished, confirmed pending volume=%.2f", pending)
         } else {
             // No pending volume was computed during transition, trigger full computation
             applyReplayGain(mediaSession?.player?.currentMediaItem)
@@ -2845,6 +2965,13 @@ class MusicService : MediaLibraryService() {
     /**
      * Bridges a suspend block into a [ListenableFuture] for Media3 callback methods.
      */
+    /**
+     * Bridges a suspend block into a [ListenableFuture] for Media3 callback methods.
+     */
+
+    /**
+     * Bridges a suspend block into a [ListenableFuture] for Media3 callback methods.
+     */
     private fun <T> CoroutineScope.future(block: suspend () -> T): ListenableFuture<T> {
         val future = SettableFuture.create<T>()
         launch(Dispatchers.IO) {
@@ -2856,5 +2983,4 @@ class MusicService : MediaLibraryService() {
         }
         return future
     }
-
 }
