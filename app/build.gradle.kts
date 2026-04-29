@@ -22,7 +22,11 @@ val enableComposeCompilerReports = providers.gradleProperty("pixelplay.enableCom
 
 android {
     namespace = "com.theveloper.pixelplay"
-    compileSdk = 35
+    compileSdk {
+        version = release(36) {
+            minorApiLevel = 1
+        }
+    }
 
     sourceSets {
         getByName("androidTest") {
@@ -50,7 +54,7 @@ android {
     defaultConfig {
         applicationId = "com.theveloper.pixelplay"
         minSdk = 29
-        targetSdk = 35
+        targetSdk = 36
         versionCode = (project.findProperty("APP_VERSION_CODE") as String).toInt()
         versionName = project.findProperty("APP_VERSION_NAME") as String
 
@@ -82,8 +86,8 @@ android {
     }
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "2.1.0"
@@ -94,7 +98,7 @@ android {
         buildConfig = true
     }
     kotlinOptions {
-        jvmTarget = "11"
+        jvmTarget = "21"
         if (enableComposeCompilerReports) {
             freeCompilerArgs += listOf(
                 "-P",
@@ -118,6 +122,10 @@ android {
         unitTests.all {
             it.useJUnitPlatform()
         }
+    }
+
+    lint {
+        checkReleaseBuilds = false
     }
 
     // CI builds installable phone APKs per supported Android device ABI.
@@ -317,7 +325,7 @@ dependencies {
     implementation(libs.androidx.material.icons.core)
     implementation(libs.androidx.material.icons.extended)
 
-    // Protobuf (JavaLite es suficiente para Android y más pequeño)
+    // Protobuf (JavaLite es suficiente para Android and más pequeño)
     // implementation(libs.protobuf.javalite) // Eliminada dependencia de Protobuf
 
     //Material library

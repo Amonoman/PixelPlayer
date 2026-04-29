@@ -9,12 +9,16 @@ plugins {
 
 android {
     namespace = "com.theveloper.pixelplay"
-    compileSdk = 35
+    compileSdk {
+        version = release(36) {
+            minorApiLevel = 1
+        }
+    }
 
     defaultConfig {
         applicationId = "com.theveloper.pixelplay"
         minSdk = 30
-        targetSdk = 34
+        targetSdk = 36
         versionCode = (project.findProperty("APP_VERSION_CODE") as String).toInt()
         versionName = project.findProperty("APP_VERSION_NAME") as String
     }
@@ -41,12 +45,12 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
 
     kotlinOptions {
-        jvmTarget = "11"
+        jvmTarget = "21"
         freeCompilerArgs += listOf(
             "-opt-in=com.google.android.horologist.annotations.ExperimentalHorologistApi",
         )

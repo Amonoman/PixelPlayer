@@ -505,29 +505,55 @@ private fun audioFormatCandidates(): List<AudioFormatCandidate> {
             add(AudioFormatCandidate("Opus", "audio/opus", null))
         }
         add(AudioFormatCandidate("ALAC", "audio/alac", null))
+        add(AudioFormatCandidate("AIFF", "audio/x-aiff", null))
+        add(AudioFormatCandidate("AC3", "audio/ac3", null))
+        add(AudioFormatCandidate("DTS", "audio/vnd.dts", null))
+        add(AudioFormatCandidate("AMR-NB", "audio/3gpp", null))
+        add(AudioFormatCandidate("AMR-WB", "audio/amr-wb", null))
+        add(AudioFormatCandidate("WMA", "audio/x-ms-wma", null))
+        add(AudioFormatCandidate("EVRC", "audio/evrc", null))
+        add(AudioFormatCandidate("QCELP", "audio/qcelp", null))
+        add(AudioFormatCandidate("IMA-ADPCM", "audio/x-ima-adpcm", null))
     }
 }
 
 private fun normalizeMimeType(mimeType: String): String {
-    return when (mimeType.lowercase(Locale.US).substringBefore(";").trim()) {
-        "audio/mp3", "audio/x-mp3" -> "audio/mpeg"
-        "audio/x-wav", "audio/wave" -> "audio/wav"
-        "audio/aac", "audio/x-aac", "audio/m4a", "audio/mp4" -> "audio/mp4a-latm"
+    return when (val mime = mimeType.lowercase(Locale.US).substringBefore(";").trim()) {
+        "audio/mp3", "audio/x-mp3", "audio/mpeg3" -> "audio/mpeg"
+        "audio/x-wav", "audio/wave", "audio/vnd.wave" -> "audio/wav"
+        "audio/aac", "audio/x-aac", "audio/m4a", "audio/mp4", "audio/aacp" -> "audio/mp4a-latm"
         "audio/x-flac" -> "audio/flac"
-        "audio/ogg" -> "audio/vorbis"
-        "audio/x-ms-wma" -> "audio/wma"
-        else -> mimeType.lowercase(Locale.US).substringBefore(";").trim()
+        "audio/ogg", "audio/x-vorbis", "application/ogg" -> "audio/vorbis"
+        "audio/x-ms-wma", "audio/wma" -> "audio/x-ms-wma"
+        "audio/x-aiff", "audio/aiff", "audio/aif", "audio/x-aifc" -> "audio/x-aiff"
+        "audio/ac3", "audio/eac3", "audio/eac3-joc" -> "audio/ac3"
+        "audio/vnd.dts", "audio/vnd.dts.hd" -> "audio/vnd.dts"
+        "audio/3gpp", "audio/amr" -> "audio/3gpp"
+        "audio/amr-wb" -> "audio/amr-wb"
+        "audio/evrc", "audio/x-evrc" -> "audio/evrc"
+        "audio/qcelp", "audio/x-qcelp" -> "audio/qcelp"
+        "audio/x-ima-adpcm", "audio/ima-adpcm" -> "audio/x-ima-adpcm"
+        else -> mime
     }
 }
 
 private fun compatibleMimeTypes(mimeType: String): Set<String> {
     val normalized = normalizeMimeType(mimeType)
     return when (normalized) {
-        "audio/mpeg" -> setOf("audio/mpeg", "audio/mp3", "audio/x-mp3")
-        "audio/mp4a-latm" -> setOf("audio/mp4a-latm", "audio/aac", "audio/x-aac", "audio/m4a", "audio/mp4")
+        "audio/mpeg" -> setOf("audio/mpeg", "audio/mp3", "audio/x-mp3", "audio/mpeg3")
+        "audio/mp4a-latm" -> setOf("audio/mp4a-latm", "audio/aac", "audio/x-aac", "audio/m4a", "audio/mp4", "audio/aacp")
         "audio/flac" -> setOf("audio/flac", "audio/x-flac")
-        "audio/wav" -> setOf("audio/wav", "audio/x-wav", "audio/wave")
-        "audio/vorbis" -> setOf("audio/vorbis", "audio/ogg")
+        "audio/wav" -> setOf("audio/wav", "audio/x-wav", "audio/wave", "audio/vnd.wave")
+        "audio/vorbis" -> setOf("audio/vorbis", "audio/ogg", "audio/x-vorbis", "application/ogg")
+        "audio/x-ms-wma" -> setOf("audio/x-ms-wma", "audio/wma")
+        "audio/x-aiff" -> setOf("audio/x-aiff", "audio/aiff", "audio/aif", "audio/x-aifc")
+        "audio/ac3" -> setOf("audio/ac3", "audio/eac3", "audio/eac3-joc")
+        "audio/vnd.dts" -> setOf("audio/vnd.dts", "audio/vnd.dts.hd")
+        "audio/3gpp" -> setOf("audio/3gpp", "audio/amr")
+        "audio/amr-wb" -> setOf("audio/amr-wb")
+        "audio/evrc" -> setOf("audio/evrc", "audio/x-evrc")
+        "audio/qcelp" -> setOf("audio/qcelp", "audio/x-qcelp")
+        "audio/x-ima-adpcm" -> setOf("audio/x-ima-adpcm", "audio/ima-adpcm")
         else -> setOf(normalized)
     }
 }

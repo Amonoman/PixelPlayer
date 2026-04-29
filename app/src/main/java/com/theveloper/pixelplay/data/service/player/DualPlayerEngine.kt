@@ -470,14 +470,22 @@ class DualPlayerEngine @Inject constructor(
                 requiresTunnelingDecoder
             )
 
+            // Prefer Samsung-specific codecs (c2.sec.*) on Samsung devices.
+            val samsungPreferred = if (Build.MANUFACTURER.lowercase(java.util.Locale.US) == "samsung") {
+                val (secCodecs, otherCodecs) = decoderInfos.partition { it.name.startsWith("c2.sec.") }
+                secCodecs + otherCodecs
+            } else {
+                decoderInfos
+            }
+
             // Some devices advertise ALAC decoders that stall on high-bitrate M4A files.
             // Prefer stable software codecs when available, otherwise let the FFmpeg
             // extension renderer handle ALAC by hiding the platform candidates.
             if (mimeType.equals(MimeTypes.AUDIO_ALAC, ignoreCase = true)) {
-                val softwareDecoders = decoderInfos.filterNot { it.hardwareAccelerated }
+                val softwareDecoders = samsungPreferred.filterNot { it.hardwareAccelerated }
                 softwareDecoders.ifEmpty { emptyList() }
             } else {
-                decoderInfos
+                samsungPreferred
             }
         }
         val renderersFactory = object : DefaultRenderersFactory(context) {

@@ -6,19 +6,23 @@ plugins {
 
 android {
     namespace = "com.theveloper.pixelplay.shared"
-    compileSdk = 35
+    compileSdk {
+        version = release(36) {
+            minorApiLevel = 1
+        }
+    }
 
     defaultConfig {
         minSdk = 29 // Must match app module's minSdk; shared code is pure DTOs with no platform APIs
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
 
     kotlinOptions {
-        jvmTarget = "11"
+        jvmTarget = "21"
     }
 }
 
