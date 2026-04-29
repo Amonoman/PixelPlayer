@@ -485,7 +485,15 @@ class DualPlayerEngine @Inject constructor(
                 val softwareDecoders = samsungPreferred.filterNot { it.hardwareAccelerated }
                 softwareDecoders.ifEmpty { emptyList() }
             } else {
-                samsungPreferred
+                // Media3 returns decoders in raw MediaCodecList order and only re-sorts
+                // by format support, never by hardware preference. On some Samsung/OneUI
+                // builds the platform enumerates c2.android.* (software) ahead of the
+                // vendor c2.sec.* hardware decoders, so ExoPlayer ends up picking software
+                // decoding even when a Samsung hardware decoder is available. Re-sort
+                // hardware-accelerated decoders to the front so c2.sec.mp3.decoder,
+                // c2.sec.flac.decoder, etc. are tried first. sortedByDescending is stable,
+                // so the relative order within each group is preserved.
+                decoderInfos.sortedByDescending { it.hardwareAccelerated }
             }
         }
         val renderersFactory = object : DefaultRenderersFactory(context) {
