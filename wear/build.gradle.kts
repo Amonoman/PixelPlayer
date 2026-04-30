@@ -109,4 +109,18 @@ dependencies {
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.session)
     implementation(libs.androidx.mediarouter)
+
+    constraints {
+        // Fix vulnerabilities in transitive dependencies
+        implementation(libs.netty.common)
+        implementation(libs.netty.handler)
+        implementation(libs.netty.codec.http)
+        implementation(libs.netty.codec.http2)
+        implementation(libs.bouncycastle.bcprov)
+        implementation(libs.bouncycastle.bcpkix)
+        implementation(libs.commons.lang3)
+        implementation(libs.jdom2)
+        implementation(libs.jose4j)
+        implementation(libs.apache.httpclient)
+    }
 }

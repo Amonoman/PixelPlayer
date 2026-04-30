@@ -115,7 +115,9 @@ class SleepTimerStateHolder @Inject constructor(
         )
 
         // Schedule alarm for reliable triggering
-        val intent = Intent(context, SleepTimerReceiver::class.java)
+        val intent = Intent(context, SleepTimerReceiver::class.java).apply {
+            setPackage(context.packageName)
+        }
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             0,
@@ -262,7 +264,9 @@ class SleepTimerStateHolder @Inject constructor(
         val wasAnythingActive = _activeTimerValueDisplay.value != null
 
         // Cancel Alarm
-        val intent = Intent(context, SleepTimerReceiver::class.java)
+        val intent = Intent(context, SleepTimerReceiver::class.java).apply {
+            setPackage(context.packageName)
+        }
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             0,

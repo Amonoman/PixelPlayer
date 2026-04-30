@@ -65,6 +65,12 @@ junit5 = "6.0.3"
 kuromoji = "0.9.0"
 pinyin4j = "2.5.1"
 securityCrypto = "1.1.0"
+netty = "4.1.118.Final"
+bouncycastle = "1.84"
+commons-lang3 = "3.20.0"
+jdom2 = "2.0.6.1"
+jose4j = "0.9.6"
+httpclient = "4.5.14"
 
 # DI
 dagger = "2.59.2"
@@ -250,6 +256,17 @@ kuromoji-ipadic = { module = "com.atilika.kuromoji:kuromoji-ipadic", version.ref
 
 # Pinyin
 pinyin4j-core = { module = "com.belerweb:pinyin4j", version.ref = "pinyin4j" }
+# Security/Vulnerability fixes (Constraints)
+netty-common = { module = "io.netty:netty-common", version.ref = "netty" }
+netty-handler = { module = "io.netty:netty-handler", version.ref = "netty" }
+netty-codec-http = { module = "io.netty:netty-codec-http", version.ref = "netty" }
+netty-codec-http2 = { module = "io.netty:netty-codec-http2", version.ref = "netty" }
+bouncycastle-bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
+bouncycastle-bcpkix = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bouncycastle" }
+commons-lang3 = { module = "org.apache.commons:commons-lang3", version.ref = "commons-lang3" }
+jdom2 = { module = "org.jdom:jdom2", version.ref = "jdom2" }
+jose4j = { module = "org.bitbucket.b_c:jose4j", version.ref = "jose4j" }
+apache-httpclient = { module = "org.apache.httpcomponents:httpclient", version.ref = "httpclient" }
 
 
 [plugins]

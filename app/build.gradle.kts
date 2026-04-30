@@ -299,6 +299,20 @@ dependencies {
     debugImplementation(platform(libs.androidx.compose.bom))
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+
+    constraints {
+        // Fix vulnerabilities in transitive dependencies
+        implementation(libs.netty.common)
+        implementation(libs.netty.handler)
+        implementation(libs.netty.codec.http)
+        implementation(libs.netty.codec.http2)
+        implementation(libs.bouncycastle.bcprov)
+        implementation(libs.bouncycastle.bcpkix)
+        implementation(libs.commons.lang3)
+        implementation(libs.jdom2)
+        implementation(libs.jose4j)
+        implementation(libs.apache.httpclient)
+    }
 }
 
 tasks.withType<Test> {

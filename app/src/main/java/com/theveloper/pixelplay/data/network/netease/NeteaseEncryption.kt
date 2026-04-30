@@ -1,5 +1,6 @@
 package com.theveloper.pixelplay.data.network.netease
 
+import android.annotation.SuppressLint
 import android.util.Base64
 import java.math.BigInteger
 import java.nio.charset.StandardCharsets
@@ -42,6 +43,7 @@ object NeteaseEncryption {
 
     // ─── AES ───────────────────────────────────────────────────────────
 
+    @SuppressLint("GetInstance")
     private fun aesEncrypt(text: String, key: String, iv: String, mode: String, format: String): String {
         val secretKey = SecretKeySpec(key.toByteArray(StandardCharsets.UTF_8), "AES")
         val cipher = when (mode.lowercase(Locale.getDefault())) {
