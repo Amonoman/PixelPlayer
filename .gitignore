@@ -12,6 +12,7 @@ hs_err_pid*.log
 .kotlin/
 /local.properties
 local.properties
+keystore.properties
 
 /.idea/caches
 /.idea/libraries

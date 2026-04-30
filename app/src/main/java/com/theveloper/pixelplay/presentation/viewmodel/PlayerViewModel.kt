@@ -2,7 +2,6 @@ package com.theveloper.pixelplay.presentation.viewmodel
 
 import android.annotation.SuppressLint
 import android.app.Activity
-import android.content.ComponentName
 import android.net.Uri
 import android.os.Trace
 import android.media.MediaMetadataRetriever
@@ -406,7 +405,7 @@ class PlayerViewModel @Inject constructor(
                 "$updatedArtUri?v=${System.currentTimeMillis()}"
             }
             
-            val updatedSong = currentSong!!.copy(albumArtUriString = newUri)
+            val updatedSong = currentSong.copy(albumArtUriString = newUri)
             
             // Update State
             playbackStateHolder.updateStablePlayerState { state ->
@@ -1077,16 +1076,18 @@ class PlayerViewModel @Inject constructor(
     val availableSortOptions: StateFlow<List<SortOption>> =
         currentLibraryTabId.map { tabId ->
             Trace.beginSection("PlayerViewModel.availableSortOptionsMapping")
-            val options = when (tabId) {
-                LibraryTabId.SONGS -> SortOption.SONGS
-                LibraryTabId.ALBUMS -> SortOption.ALBUMS
-                LibraryTabId.ARTISTS -> SortOption.ARTISTS
-                LibraryTabId.PLAYLISTS -> SortOption.PLAYLISTS
-                LibraryTabId.FOLDERS -> SortOption.FOLDERS
-                LibraryTabId.LIKED -> SortOption.LIKED
+            try {
+                when (tabId) {
+                    LibraryTabId.SONGS -> SortOption.SONGS
+                    LibraryTabId.ALBUMS -> SortOption.ALBUMS
+                    LibraryTabId.ARTISTS -> SortOption.ARTISTS
+                    LibraryTabId.PLAYLISTS -> SortOption.PLAYLISTS
+                    LibraryTabId.FOLDERS -> SortOption.FOLDERS
+                    LibraryTabId.LIKED -> SortOption.LIKED
+                }
+            } finally {
+                Trace.endSection()
             }
-            Trace.endSection()
-            options
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -2017,9 +2018,12 @@ class PlayerViewModel @Inject constructor(
 
     fun onMainActivityStart() {
         Trace.beginSection("PlayerViewModel.onMainActivityStart")
-        preloadThemesAndInitialData()
-        checkAndUpdateDailyMixIfNeeded()
-        Trace.endSection()
+        try {
+            preloadThemesAndInitialData()
+            checkAndUpdateDailyMixIfNeeded()
+        } finally {
+            Trace.endSection()
+        }
     }
 
 
@@ -2032,16 +2036,19 @@ class PlayerViewModel @Inject constructor(
 
     private fun preloadThemesAndInitialData() {
         Trace.beginSection("PlayerViewModel.preloadThemesAndInitialData")
-        viewModelScope.launch {
-            _isInitialThemePreloadComplete.value = false
-            if (isSyncingStateFlow.value && !_isInitialDataLoaded.value) {
-                // Sync is active - defer to sync completion handler
-            } else if (!_isInitialDataLoaded.value && libraryStateHolder.allSongs.value.isEmpty()) {
-                resetAndLoadInitialData("preloadThemesAndInitialData")
+        try {
+            viewModelScope.launch {
+                _isInitialThemePreloadComplete.value = false
+                if (isSyncingStateFlow.value && !_isInitialDataLoaded.value) {
+                    // Sync is active - defer to sync completion handler
+                } else if (!_isInitialDataLoaded.value && libraryStateHolder.allSongs.value.isEmpty()) {
+                    resetAndLoadInitialData("preloadThemesAndInitialData")
+                }
+                _isInitialThemePreloadComplete.value = true
             }
-            _isInitialThemePreloadComplete.value = true
+        } finally {
+            Trace.endSection()
         }
-        Trace.endSection()
     }
 
     private fun loadInitialLibraryDataParallel() {
@@ -2053,9 +2060,13 @@ class PlayerViewModel @Inject constructor(
 
     private fun resetAndLoadInitialData(caller: String = "Unknown") {
         Trace.beginSection("PlayerViewModel.resetAndLoadInitialData")
-        loadInitialLibraryDataParallel()
-        updateDailyMix()
-        Trace.endSection()
+        try {
+            Log.d("PlayerViewModel", "resetAndLoadInitialData called by $caller")
+            loadInitialLibraryDataParallel()
+            updateDailyMix()
+        } finally {
+            Trace.endSection()
+        }
     }
 
     fun loadSongsIfNeeded() = libraryStateHolder.loadSongsIfNeeded()
@@ -2413,6 +2424,8 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    private var lastQueueUpdateRequestId = 0L
+
     private fun updateCurrentPlaybackQueueFromPlayer(playerCtrl: MediaController?) {
         val currentMediaController = playerCtrl ?: mediaController ?: return
         val count = currentMediaController.mediaItemCount
@@ -2430,6 +2443,7 @@ class PlayerViewModel @Inject constructor(
             mediaItems.add(currentMediaController.getMediaItemAt(i))
         }
 
+        val requestId = ++lastQueueUpdateRequestId
         viewModelScope.launch {
             val allSongsById = libraryStateHolder.allSongsById.value
             
@@ -2438,6 +2452,8 @@ class PlayerViewModel @Inject constructor(
                     resolveSongFromMediaItem(mediaItem, allSongsById)
                 }
             }
+
+            if (requestId != lastQueueUpdateRequestId) return@launch
 
             _playerUiState.update { it.copy(currentPlaybackQueue = queue.toPlaybackQueue()) }
             if (queue.isNotEmpty()) {
@@ -2564,10 +2580,11 @@ class PlayerViewModel @Inject constructor(
                         .extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)
                         ?.toIntOrNull()
                         ?.takeIf { it > 0 }
-                    val sampleRate = retriever
-                        .extractMetadata(MediaMetadataRetriever.METADATA_KEY_SAMPLERATE)
-                        ?.toIntOrNull()
-                        ?.takeIf { it > 0 }
+                    val sampleRate = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                        retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_SAMPLERATE)
+                            ?.toIntOrNull()
+                            ?.takeIf { it > 0 }
+                    } else null
                     PlaybackAudioMetadata(
                         mediaId = mediaId,
                         mimeType = mimeType,
@@ -4529,7 +4546,7 @@ class PlayerViewModel @Inject constructor(
                 
                 // If it was the current song, we might want to refresh the lyrics in state if it migrated from remote to local
                 if (playbackStateHolder.stablePlayerState.value.currentSong?.id == song.id) {
-                    // This could trigger a reload if needed, but for now we just confirmed it's saved.
+                    loadLyricsForCurrentSong()
                 }
             } catch (e: Exception) {
                 Timber.e(e, "Failed to save lyrics to file")
