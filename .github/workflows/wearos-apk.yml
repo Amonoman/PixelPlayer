@@ -4,11 +4,13 @@ on:
   push:
     branches: [ master ]
   pull_request:
+    types: [opened, synchronize, reopened]
     branches: [ master ]
   workflow_dispatch:
 
 jobs:
   build-wear:
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
 
     steps:
