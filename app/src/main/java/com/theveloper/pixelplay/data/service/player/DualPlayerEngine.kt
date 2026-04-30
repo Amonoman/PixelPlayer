@@ -203,6 +203,13 @@ class DualPlayerEngine @Inject constructor(
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             cancelAudioOffloadFallback()
+            
+            // If the transition was not automatic (e.g. user skip or playlist change),
+            // immediately cancel any background crossfade logic to ensure responsiveness.
+            if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
+                cancelNext()
+            }
+
             val uri = mediaItem?.localConfiguration?.uri
             if (uri?.scheme == "telegram") {
                 scope.launch {
@@ -689,12 +696,52 @@ class DualPlayerEngine @Inject constructor(
     suspend fun prepareNext(mediaItem: MediaItem, startPositionMs: Long = 0L) {
         try {
             val resolvedItem = resolveMediaItem(mediaItem)
+            
+            // OPTIMIZATION: Collect the current state of playerA's queue.
+            // This ensures playerB has the full context immediately, preventing
+            // jumpy playback when we swap and then try to add thousands of items later.
+            val timeline = playerA.currentTimeline
+            val count = timeline.windowCount
+            val currentIndex = playerA.currentMediaItemIndex
+            
+            // Attempt to find where the requested mediaItem fits in the current timeline
+            var targetIndex = -1
+            val window = Timeline.Window()
+            for (i in 0 until count) {
+                if (timeline.getWindow(i, window).mediaItem.mediaId == mediaItem.mediaId) {
+                    // Favor indices ahead of current index if there are duplicates
+                    if (i > currentIndex) {
+                        targetIndex = i
+                        break
+                    }
+                    if (targetIndex == -1) targetIndex = i
+                }
+            }
+
             playerB.stop()
             playerB.clearMediaItems()
-            playerB.setMediaItem(resolvedItem)
+            
+            if (targetIndex != -1) {
+                // If it's part of the current playlist, copy the whole thing!
+                // We do this loop once here, on the main thread (via TransitionController scope),
+                // but it's much better than doing it during the overlap transition 
+                // and triggering multiple timeline updates in the VM.
+                val allItems = ArrayList<MediaItem>(count)
+                for (i in 0 until count) {
+                    val item = timeline.getWindow(i, window).mediaItem
+                    // Use the resolved item (which has the URL) for the target track,
+                    // keep the original ones for the rest.
+                    allItems.add(if (i == targetIndex) resolvedItem else item)
+                }
+                playerB.setMediaItems(allItems, targetIndex, startPositionMs)
+            } else {
+                // Fallback for single item if not found in current timeline
+                playerB.setMediaItem(resolvedItem)
+                playerB.seekTo(startPositionMs)
+            }
+
             playerB.prepare()
             playerB.volume = 0f
-            playerB.seekTo(startPositionMs)
             playerB.pause()
         } catch (e: Exception) {
             Timber.tag("TransitionDebug").e(e, "Failed to prepare next player")
@@ -704,9 +751,14 @@ class DualPlayerEngine @Inject constructor(
     fun cancelNext() {
         transitionJob?.cancel()
         transitionRunning = false
-        if (playerB.mediaItemCount > 0) {
-            playerB.stop()
-            playerB.clearMediaItems()
+        if (::playerB.isInitialized && playerB.mediaItemCount > 0) {
+            try {
+                playerB.stop()
+                playerB.clearMediaItems()
+            } catch (e: Exception) { /* Ignore */ }
+        }
+        if (::playerA.isInitialized) {
+            playerA.volume = 1f
         }
         incomingTrackReplayGainVolume = null
         setPauseAtEndOfMediaItems(false)
@@ -719,10 +771,12 @@ class DualPlayerEngine @Inject constructor(
             try {
                 performOverlapTransition(settings)
             } catch (e: Exception) {
-                Timber.tag("TransitionDebug").e(e, "Error performing transition")
+                if (e !is kotlinx.coroutines.CancellationException) {
+                    Timber.tag("TransitionDebug").e(e, "Error performing transition")
+                }
                 playerA.volume = 1f
                 setPauseAtEndOfMediaItems(false)
-                playerB.stop()
+                if (::playerB.isInitialized) playerB.stop()
             } finally {
                 transitionRunning = false
                 onTransitionFinishedListeners.forEach { it() }
@@ -764,17 +818,6 @@ class DualPlayerEngine @Inject constructor(
 
         val outgoingPlayer = playerA
         val incomingPlayer = playerB
-        val isSelfTransition = outgoingPlayer.currentMediaItem?.mediaId == incomingPlayer.currentMediaItem?.mediaId
-        val currentOutgoingIndex = outgoingPlayer.currentMediaItemIndex
-        val outgoingCount = outgoingPlayer.mediaItemCount
-
-        val historyToTransfer = List(if (isSelfTransition) currentOutgoingIndex else currentOutgoingIndex + 1) {
-            outgoingPlayer.getMediaItemAt(it)
-        }
-        val futureStartIndex = if (isSelfTransition) currentOutgoingIndex + 1 else currentOutgoingIndex + 2
-        val futureToTransfer = List((outgoingCount - futureStartIndex).coerceAtLeast(0)) {
-            outgoingPlayer.getMediaItemAt(futureStartIndex + it)
-        }
 
         incomingPlayer.repeatMode = outgoingPlayer.repeatMode
         incomingPlayer.shuffleModeEnabled = outgoingPlayer.shuffleModeEnabled
@@ -790,9 +833,6 @@ class DualPlayerEngine @Inject constructor(
         playerA.addListener(masterPlayerListener)
         playerA.addAnalyticsListener(masterPlayerListener)
         if (playerA.playWhenReady) requestAudioFocus()
-
-        if (historyToTransfer.isNotEmpty()) playerA.addMediaItems(0, historyToTransfer)
-        if (futureToTransfer.isNotEmpty()) playerA.addMediaItems(futureToTransfer)
 
         onPlayerSwappedListeners.forEach { it(playerA) }
         _activeAudioSessionId.value = playerA.audioSessionId
@@ -821,8 +861,6 @@ class DualPlayerEngine @Inject constructor(
         playerB.pause()
         playerB.stop()
         playerB.clearMediaItems()
-        playerB.release()
-        playerB = buildPlayer()
 
         setPauseAtEndOfMediaItems(false)
     }

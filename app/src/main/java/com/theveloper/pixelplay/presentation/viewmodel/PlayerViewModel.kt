@@ -2425,26 +2425,41 @@ class PlayerViewModel @Inject constructor(
     }
 
     private var lastQueueUpdateRequestId = 0L
+    private var lastQueueSignature: String? = null
+    private var lastQueueUpdateJob: Job? = null
 
     private fun updateCurrentPlaybackQueueFromPlayer(playerCtrl: MediaController?) {
         val currentMediaController = playerCtrl ?: mediaController ?: return
         val count = currentMediaController.mediaItemCount
+
+        // Heuristic: skip if size hasn't changed.
+        // We don't include currentMediaId here because we don't need to rebuild the whole
+        // queue list just because the selection moved. Selection is handled by stablePlayerState.
+        val signature = "$count"
+        if (signature == lastQueueSignature) return
+        lastQueueSignature = signature
 
         if (count == 0) {
             _playerUiState.update { it.copy(currentPlaybackQueue = persistentListOf()) }
             return
         }
 
-        // To avoid ANRs with very large queues (e.g. 5000+ songs after a long background stay),
-        // we capture the lightweight MediaItem references on the Main thread, but process 
-        // the heavy resolving and Song object creation on a background thread.
-        val mediaItems = mutableListOf<MediaItem>()
-        for (i in 0 until count) {
-            mediaItems.add(currentMediaController.getMediaItemAt(i))
-        }
-
         val requestId = ++lastQueueUpdateRequestId
-        viewModelScope.launch {
+        lastQueueUpdateJob?.cancel()
+        lastQueueUpdateJob = viewModelScope.launch {
+            // Debounce slightly to handle rapid-fire timeline events
+            delay(100)
+            
+            val timeline = currentMediaController.currentTimeline
+            val mediaItems = mutableListOf<MediaItem>()
+            val window = Timeline.Window()
+            
+            // Collect MediaItems on Main thread (inside coroutine)
+            for (i in 0 until count) {
+                mediaItems.add(timeline.getWindow(i, window).mediaItem)
+                if (i % 500 == 0) kotlinx.coroutines.yield()
+            }
+
             val allSongsById = libraryStateHolder.allSongsById.value
             
             val queue = withContext(Dispatchers.Default) {
@@ -2889,8 +2904,16 @@ class PlayerViewModel @Inject constructor(
             }
             override fun onTimelineChanged(timeline: Timeline, reason: Int) {
                 if (isRemoteSessionControllingPlayback()) return
+                // Skip updates during crossfade transitions to prevent UI freeze and jumpy state.
+                if (dualPlayerEngine.isTransitionRunning()) return
+
                 transitionSchedulerJob?.cancel()
-                updateCurrentPlaybackQueueFromPlayer(mediaController)
+                
+                // Only refresh full queue on structural changes or source updates (metadata)
+                if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED ||
+                    reason == Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE) {
+                    updateCurrentPlaybackQueueFromPlayer(mediaController)
+                }
             }
         }
         playerCtrl.addListener(checkNotNull(mediaControllerPlaybackListener))

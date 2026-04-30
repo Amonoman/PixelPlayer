@@ -40,6 +40,12 @@ jobs:
             -storepass 127733 -keypass 127733 \
             -dname "CN=PixelPlay, OU=Dev, O=PixelPlay, L=World, S=World, C=US"
 
+      - name: Create keystore.properties
+        run: |
+          echo "storePassword=127733" > keystore.properties
+          echo "keyAlias=pixelplay-key" >> keystore.properties
+          echo "keyPassword=127733" >> keystore.properties
+
       - name: Build Phone release APK
         run: gradle :app:assembleRelease -Ppixelplay.enableAbiSplits=true
 

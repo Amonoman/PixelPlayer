@@ -118,12 +118,11 @@ class TransitionController @Inject constructor(
         engine.setPauseAtEndOfMediaItems(false)
 
         transitionSchedulerJob = scope.launch {
-            // WAIT for any active transition to finish.
-            // If we proceed immediately, we might call prepareNext() which resets playerB.
-            // But during a crossfade, playerB is the "Outgoing Player", so resetting it kills the fade.
-            while (engine.isTransitionRunning()) {
-                Timber.tag("TransitionDebug").d("Waiting for active transition to finish before scheduling next...")
-                delay(500)
+            // If a transition is currently running, cancel it immediately.
+            // We are on a new track (or starting fresh), so the old crossfade is stale.
+            if (engine.isTransitionRunning()) {
+                Timber.tag("TransitionDebug").d("Cancelling active transition to schedule next...")
+                engine.cancelNext()
             }
 
             val player = engine.masterPlayer
