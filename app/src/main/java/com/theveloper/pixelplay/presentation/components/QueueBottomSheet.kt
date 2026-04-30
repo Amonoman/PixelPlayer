@@ -246,7 +246,7 @@ fun QueueBottomSheet(
     modifier: Modifier = Modifier,
     tonalElevation: Dp = 10.dp,
     shape: RoundedCornerShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-    ) {
+) {
     val colors = MaterialTheme.colorScheme
     val context = LocalContext.current
     var showTimerOptions by rememberSaveable { mutableStateOf(false) }
@@ -426,34 +426,7 @@ fun QueueBottomSheet(
         reorderPreviewQueueSignature = displaySongsSignature
     }
 
-    val isReordering by remember {
-        derivedStateOf { reorderableState.isAnyItemDragging }
-    }
-    var reorderHandleInUse by remember { mutableStateOf(false) }
-
-    // Only jump to current song if the queue is *not* being manually modified.
-    // We can use the drag/reorder state as a signal to suppress this scroll.
-    LaunchedEffect(currentSongDisplayIndex, displaySongCount) {
-        if (!isReordering && !reorderHandleInUse && currentSongDisplayIndex >= 0 && currentSongDisplayIndex < displaySongCount) {
-            // Check if we are already close enough to avoid unnecessary jumping
-            val firstVisible = listState.firstVisibleItemIndex
-            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-            if (currentSongDisplayIndex !in firstVisible..lastVisible) {
-                listState.animateScrollToItem(currentSongDisplayIndex)
-            }
-        }
-    }
-
-    val canDragSheetFromList by remember {
-        derivedStateOf {
-            listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
-        }
-    }
-    val updatedCanDragSheet by rememberUpdatedState(canDragSheetFromList)
-    var draggingSheetFromList by remember { mutableStateOf(false) }
-    var listDragAccumulated by remember { mutableStateOf(0f) }
-    val view = LocalView.current
-    val appHapticsConfig = LocalAppHapticsConfig.current
+    // --- REORDER STATE ---
     var lastMovedFrom by remember { mutableStateOf<Int?>(null) }
     var lastMovedTo by remember { mutableStateOf<Int?>(null) }
     var reorderHandleInUse by remember { mutableStateOf(false) }
@@ -493,6 +466,31 @@ fun QueueBottomSheet(
         derivedStateOf { reorderableState.isAnyItemDragging }
     }
     val updatedIsReordering by rememberUpdatedState(isReordering)
+    // ----------------------
+
+    // Only jump to current song if the queue is *not* being manually modified.
+    // We can use the drag/reorder state as a signal to suppress this scroll.
+    LaunchedEffect(currentSongDisplayIndex, displaySongCount) {
+        if (!isReordering && !reorderHandleInUse && currentSongDisplayIndex >= 0 && currentSongDisplayIndex < displaySongCount) {
+            // Check if we are already close enough to avoid unnecessary jumping
+            val firstVisible = listState.firstVisibleItemIndex
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            if (currentSongDisplayIndex !in firstVisible..lastVisible) {
+                listState.animateScrollToItem(currentSongDisplayIndex)
+            }
+        }
+    }
+
+    val canDragSheetFromList by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
+        }
+    }
+    val updatedCanDragSheet by rememberUpdatedState(canDragSheetFromList)
+    var draggingSheetFromList by remember { mutableStateOf(false) }
+    var listDragAccumulated by remember { mutableStateOf(0f) }
+    val view = LocalView.current
+    val appHapticsConfig = LocalAppHapticsConfig.current
 
     val updatedOnQueueDragStart by rememberUpdatedState(onQueueDragStart)
     val updatedOnQueueDrag by rememberUpdatedState(onQueueDrag)
@@ -561,10 +559,6 @@ fun QueueBottomSheet(
             )
         }
     }
-
-    val scrollBehavior = FloatingToolbarDefaults.exitAlwaysScrollBehavior(
-        exitDirection = FloatingToolbarExitDirection.Bottom
-    )
 
     fun finalizeListDrag(velocity: Float = 0f) {
         if (draggingSheetFromList) {
@@ -742,8 +736,7 @@ fun QueueBottomSheet(
                             userScrollEnabled = !(isReordering || reorderHandleInUse),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(
-                                start = 0.dp, // Reduced start padding by half (12dp -> 6dp)
-                                // Reduced end padding: 16.dp when scrollable (was 22.dp), 6dp otherwise to match start
+                                start = 0.dp,
                                 end = if (listState.canScrollForward || listState.canScrollBackward) 26.dp else 0.dp,
                                 bottom = MiniPlayerHeight + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 32.dp
                             )
@@ -762,7 +755,6 @@ fun QueueBottomSheet(
                                 if (queueIndex !in activeSongSource.indices) return@items
                                 val itemStableKey = activeKeys[index]
                                 val song = activeSongSource[queueIndex]
-                                // Use currentSongDisplayIndex for comparison since index is in displayQueue
                                 val canReorder = index > currentSongDisplayIndex
                                 ReorderableItem(
                                     state = reorderableState,
@@ -801,8 +793,6 @@ fun QueueBottomSheet(
                                             },
                                         onClick = { onPlaySong(song) },
                                         song = song,
-                                        // Use index comparison to correctly highlight only the current song
-                                        // even when the same song appears multiple times in the queue
                                         isCurrentSong = index == currentSongDisplayIndex,
                                         isPlaying = isPlaying,
                                         isDragging = isDragging,
@@ -882,11 +872,10 @@ fun QueueBottomSheet(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(bottom = fabSpacing + navigationBarHeight)
-                        // Usamos IntrinsicSize.Min o una altura fija para asegurar igualdad
                         .height(70.dp)
                         .then(directSheetDragModifier),
                     horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically // Alinea FAB y Toolbar al centro verticalmente
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     val isTimerActiveDerived = remember {
                         derivedStateOf { activeTimerValueDisplay.value != null }
@@ -919,12 +908,11 @@ fun QueueBottomSheet(
                         ),
                         containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                         contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                        elevation = FloatingActionButtonDefaults.elevation(0.dp) // Opcional: para igualar elevación flat
+                        elevation = FloatingActionButtonDefaults.elevation(0.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.MoreHoriz,
                             contentDescription = stringResource(R.string.presentation_batch_e_cd_queue_actions),
-                            //modifier = Modifier.rotate(fabRotation)
                         )
                     }
                 }
@@ -1025,7 +1013,6 @@ fun QueueBottomSheet(
                 }
             }
 
-            // Undo bar for queue item removal
             val queueUndoBarState by remember(viewModel) {
                 viewModel.playerUiState
                     .map { it.toQueueUndoBarProjection() }
@@ -1172,11 +1159,6 @@ private fun QueueToolbarMenuButton(
     }
 }
 
-/**
- * Composed queue header that merges the miniplayer, section title and source badge
- * into a single expressive surface so the sheet opens with one clear visual idea.
- * Separating this prevents recomposition when unrelated state changes.
- */
 @Composable
 private fun QueueHeaderSection(
     isPlaying: Boolean,
@@ -1217,15 +1199,6 @@ private fun QueueHeaderSection(
                 queueCount = queueCount,
                 modifier = Modifier.fillMaxWidth()
             )
-
-//            QueueHeaderTransportPanel(
-//                isPlaying = isPlaying,
-//                onPrevious = onPrevious,
-//                onPlayPause = onPlayPause,
-//                onNext = onNext,
-//                colorScheme = colorScheme,
-//                modifier = Modifier.fillMaxWidth()
-//            )
         }
     }
 }
@@ -1308,10 +1281,6 @@ private fun QueueSourceBadge(
     }
 }
 
-/**
- * Extracted toolbar composable for queue controls (shuffle, repeat, timer).
- * Separating this reduces recompositions when only these states change.
- */
 @Composable
 private fun QueueControlsToolbar(
     isShuffleOn: Boolean,
@@ -1439,12 +1408,10 @@ fun SaveQueueAsPlaylistSheet(
     }
 
     LaunchedEffect(Unit) {
-        // Give the dialog a moment to settle before requesting focus so the IME opens once
         delay(250)
         focusRequester.requestFocus()
     }
 
-    // Override back handler to dismiss the dialog directly
     BackHandler(onBack = { onDismiss() })
 
     Dialog(
@@ -1455,12 +1422,8 @@ fun SaveQueueAsPlaylistSheet(
             decorFitsSystemWindows = false
         )
     ) {
-        val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
-
         Scaffold(
-                modifier = Modifier
-                    .fillMaxSize(),
-                    //.nestedScroll(scrollBehavior.nestedScrollConnection),
+                modifier = Modifier.fillMaxSize(),
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentWindowInsets = WindowInsets.safeDrawing,
                 topBar = {
@@ -1547,10 +1510,8 @@ fun SaveQueueAsPlaylistSheet(
                             colors = TopAppBarDefaults.topAppBarColors(
                                 containerColor = MaterialTheme.colorScheme.surface,
                                 scrolledContainerColor = MaterialTheme.colorScheme.surface
-                            ),
-                            //scrollBehavior = scrollBehavior
+                            )
                         )
-                        // Input section pinned to the top
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1617,7 +1578,7 @@ fun SaveQueueAsPlaylistSheet(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .windowInsetsPadding(WindowInsets.ime) // Push up with keyboard
+                            .windowInsetsPadding(WindowInsets.ime)
                             .windowInsetsPadding(WindowInsets.navigationBars)
                             .padding(16.dp)
                     ) {
@@ -1795,59 +1756,6 @@ fun SaveQueueAsPlaylistSheet(
         }
     }
 
-private data class QueueHeaderTransportColors(
-    val playPauseContainer: Color,
-    val playPauseContent: Color,
-    val skipContainer: Color,
-    val skipContent: Color
-)
-
-@Composable
-private fun QueueHeaderTransportPanel(
-    isPlaying: Boolean,
-    onPrevious: () -> Unit,
-    onPlayPause: () -> Unit,
-    onNext: () -> Unit,
-    colorScheme: ColorScheme? = null,
-    modifier: Modifier = Modifier
-) {
-    val colors = colorScheme ?: MaterialTheme.colorScheme
-    val transportColors = remember(colors) {
-        QueueHeaderTransportColors(
-            playPauseContainer = colors.tertiaryFixedDim,
-            playPauseContent = colors.onTertiaryFixed,
-            skipContainer = colors.secondaryFixedDim,
-            skipContent = colors.onSecondaryFixed
-        )
-    }
-    val stableControlAnimationSpec = remember {
-        tween<Float>(durationMillis = 240, easing = FastOutSlowInEasing)
-    }
-
-    AnimatedPlaybackControls(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(top = 2.dp),
-        isPlayingProvider = { isPlaying },
-        onPrevious = onPrevious,
-        onPlayPause = onPlayPause,
-        onNext = onNext,
-        height = 74.dp,
-        pressAnimationSpec = stableControlAnimationSpec,
-        releaseDelay = 220L,
-        colorOtherButtons = transportColors.skipContainer,
-        colorPlayPause = transportColors.playPauseContainer,
-        tintPlayPauseIcon = transportColors.playPauseContent,
-        tintOtherIcons = transportColors.skipContent,
-        colorPreviousButton = transportColors.skipContainer,
-        colorNextButton = transportColors.skipContainer,
-        tintPreviousIcon = transportColors.skipContent,
-        tintNextIcon = transportColors.skipContent,
-        playPauseIconSize = 34.dp,
-        iconSize = 30.dp
-    )
-}
-
 @Composable
 fun QueuePlaylistSongItem(
     modifier: Modifier = Modifier,
@@ -1875,16 +1783,6 @@ fun QueuePlaylistSongItem(
     )
 
     val itemShape = RoundedCornerShape(cornerRadius)
-//        AbsoluteSmoothCornerShape(
-//            cornerRadiusTR = cornerRadius,
-//            smoothnessAsPercentTL = 60,
-//            cornerRadiusTL = cornerRadius,
-//            smoothnessAsPercentTR = 60,
-//            cornerRadiusBR = cornerRadius,
-//            smoothnessAsPercentBL = 60,
-//            cornerRadiusBL = cornerRadius,
-//            smoothnessAsPercentBR = 60
-//        )
 
     val albumCornerRadius by animateDpAsState(
         targetValue = if (isCurrentSong) 60.dp else 8.dp,
@@ -1892,16 +1790,6 @@ fun QueuePlaylistSongItem(
     )
 
     val albumShape = RoundedCornerShape(albumCornerRadius)
-//        AbsoluteSmoothCornerShape(
-//            cornerRadiusTR = albumCornerRadius,
-//            smoothnessAsPercentTL = 60,
-//            cornerRadiusTL = albumCornerRadius,
-//            smoothnessAsPercentTR = 60,
-//            cornerRadiusBR = albumCornerRadius,
-//            smoothnessAsPercentBL = 60,
-//            cornerRadiusBL = albumCornerRadius,
-//            smoothnessAsPercentBR = 60
-//        )
 
     val elevation by animateDpAsState(
         targetValue = if (isDragging) 4.dp else 1.dp,
@@ -1917,7 +1805,6 @@ fun QueuePlaylistSongItem(
     val dismissEnabled = enableSwipeToDismiss && !isDragging
     val density = LocalDensity.current
 
-    // Custom gesture-based dismiss (tension → snap → free-drag → dismiss/spring-back)
     val dismissOffsetAnimatable = remember(swipeStateIdentity) { Animatable(0f) }
     var itemWidthPx by remember { mutableStateOf(0f) }
 
@@ -1957,9 +1844,7 @@ fun QueuePlaylistSongItem(
         animationSpec = tween(durationMillis = 120),
         label = "dismissIconScale"
     )
-    val dismissIconRotation = 0f
 
-    // Track the actual rendered height of the Surface (foreground item) to size the background exactly.
     var surfaceHeightPx by remember { mutableStateOf(0f) }
 
     Box(
@@ -1970,8 +1855,6 @@ fun QueuePlaylistSongItem(
                 if (measuredWidth != itemWidthPx) itemWidthPx = measuredWidth
             }
     ) {
-        // Background reveal: stretches horizontally like before, height matches Surface exactly,
-        // clipped to CircleShape for fully-rounded ends.
         if (revealWidthPx > 0f && surfaceHeightPx > 0f) {
             val revealWidthDp = with(density) { revealWidthPx.toDp() }
             val surfaceHeightDp = with(density) { surfaceHeightPx.toDp() }
@@ -1994,14 +1877,12 @@ fun QueuePlaylistSongItem(
                             alpha = dismissIconAlpha
                             scaleX = dismissIconScale
                             scaleY = dismissIconScale
-                            rotationZ = dismissIconRotation
                         },
                     tint = colors.onErrorContainer
                 )
             }
         }
 
-        // Foreground content with horizontal offset
         Surface(
             modifier = Modifier
                 .graphicsLayer { translationX = currentOffsetPx }
@@ -2025,16 +1906,10 @@ fun QueuePlaylistSongItem(
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Drag handle is a DIRECT child of the Row, NOT inside the dismiss
-                // gesture area. This prevents detectHorizontalDragGestures from
-                // interfering with the reorderable library's drag detection.
                 AnimatedVisibility(visible = isDragHandleVisible) {
                     dragHandle()
                 }
 
-                // All remaining content is wrapped in a Row that carries the dismiss
-                // gesture. Because it is a SIBLING of the drag handle (not an ancestor),
-                // pointer events on the drag handle never reach this gesture detector.
                 val dismissGestureModifier = if (dismissEnabled && dismissHandler != null) {
                     Modifier.pointerInput(swipeStateIdentity, dismissHandler) {
                         detectHorizontalDragGestures(

@@ -4,21 +4,16 @@ import com.theveloper.pixelplay.utils.LogUtils
 import com.theveloper.pixelplay.data.stream.CloudStreamSecurity
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
-import io.ktor.server.application.call
-import io.ktor.server.engine.EmbeddedServer
-import io.ktor.server.engine.embeddedServer
-import io.ktor.server.engine.ApplicationEngine
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.routing.routing
 import io.ktor.server.cio.CIO
 import io.ktor.server.cio.CIOApplicationEngine
-import io.ktor.server.cio.*
+import io.ktor.server.engine.EmbeddedServer
 import io.ktor.server.engine.EngineConnectorBuilder
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondBytesWriter
 import io.ktor.server.response.header
 import io.ktor.server.routing.get
-import io.ktor.server.routing.routing
 import io.ktor.utils.io.writeFully
 import kotlin.math.min
 import kotlinx.coroutines.CoroutineScope
@@ -39,20 +34,12 @@ import javax.inject.Singleton
 class TelegramStreamProxy @Inject constructor(
     private val telegramRepository: TelegramRepository
 ) {
-    private var server: ApplicationEngine? = null
+    private var server: EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration>? = null
     private val proxyScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var startJob: Job? = null
 
     private fun createServer(port: Int): EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration> {
-        return embeddedServer(CIO) {
-            connector {
-                this.port = port
-                this.host = "127.0.0.1"
-            }
-            configure {
-                // Fast proxy restarts can otherwise fail if the previous socket is still draining.
-                reuseAddress = true
-            }
+        return embeddedServer(CIO, port = port, host = "127.0.0.1") {
             routing {
                 get("/stream/{fileId}") {
                     val fileId = call.parameters["fileId"]?.toIntOrNull()
