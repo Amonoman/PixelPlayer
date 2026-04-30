@@ -11,9 +11,9 @@ object AppLanguage {
     const val RUSSIAN = "ru"
     const val CHINESE = "zh-CN"
     const val INDONESIAN = "in"
-    const val ITALIAN ="it"
+    const val ITALIAN = "it"
 
-    val supportedLanguageTags: Set<String> = setOf(SYSTEM, ENGLISH, SPANISH, CHINESE, INDONESIAN, FRENCH, RUSSIAN,ITALIAN)
+    val supportedLanguageTags: Set<String> = setOf(SYSTEM, ENGLISH, SPANISH, CHINESE, INDONESIAN, FRENCH, RUSSIAN, ITALIAN)
 
     fun getLanguageOptions(context: Context): Map<String, String> {
         return mapOf(
@@ -25,12 +25,13 @@ object AppLanguage {
             CHINESE to context.getString(R.string.setcat_language_chinese),
             INDONESIAN to context.getString(R.string.setcat_language_indonesian),
             ITALIAN to context.getString(R.string.setcat_language_italian)
-            
         )
     }
 
     fun normalize(languageTag: String): String {
-        val normalized = languageTag.trim().lowercase()
-        return if (normalized in supportedLanguageTags) normalized else SYSTEM
-    }
+    val normalized = languageTag.trim()
+    return supportedLanguageTags.find { 
+        it.equals(normalized, ignoreCase = true) 
+    } ?: SYSTEM
+}
 }
