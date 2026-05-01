@@ -31,6 +31,7 @@
     <string name="found_n_matches_format">找到 %d 个匹配结果</string>
     <string name="searched_for_x_format">已搜索 \"%s\"</string>
     <string name="searching_lyrics">正在搜索歌词…</string>
+    <string name="lyrics_already_available">Lyrics already available. Online fetch skipped.</string>
     <string name="lyrics_embedded_already_available">已找到内嵌歌词，已跳过在线获取。</string>
     <string name="local_lrc_already_available">已找到本地 (.lrc) 歌词，已跳过在线获取。</string>
     <string name="fetch_lyrics_show_options_title">显示歌词选项</string>
@@ -57,6 +58,10 @@
     <string name="sync_complete">同步完成</string>
     <string name="sync_pending">等待中…</string>
     <string name="syncing_library">正在同步媒体库…</string>
+    <string name="library_background_sync">Finishing in the background…</string>
+    <string name="library_background_sync_lyrics">Scanning lyrics…</string>
+    <string name="library_background_sync_cache">Cleaning album art cache…</string>
+    <string name="library_background_sync_cloud">Syncing cloud sources…</string>
     <string name="unknown_song_title">未知曲目</string>
     <string name="unknown_artist">未知艺术家</string>
     <string name="unknown_album">未知专辑</string>
