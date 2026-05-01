@@ -58,10 +58,10 @@
     <string name="sync_complete">同步完成</string>
     <string name="sync_pending">等待中…</string>
     <string name="syncing_library">正在同步媒体库…</string>
-    <string name="library_background_sync">Finishing in the background…</string>
-    <string name="library_background_sync_lyrics">Scanning lyrics…</string>
-    <string name="library_background_sync_cache">Cleaning album art cache…</string>
-    <string name="library_background_sync_cloud">Syncing cloud sources…</string>
+    <string name="library_background_sync">正在后台完成……</string>
+    <string name="library_background_sync_lyrics">正在扫描歌词……</string>
+    <string name="library_background_sync_cache">正在清理专辑封面缓存……</string>
+    <string name="library_background_sync_cloud">正在同步云端资源……</string>
     <string name="unknown_song_title">未知曲目</string>
     <string name="unknown_artist">未知艺术家</string>
     <string name="unknown_album">未知专辑</string>
