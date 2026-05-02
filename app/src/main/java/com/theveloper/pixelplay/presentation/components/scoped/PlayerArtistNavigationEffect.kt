@@ -28,11 +28,11 @@ internal fun PlayerArtistNavigationEffect(
                 // Allow navigating from one artist detail to another by replacing
                 // the current instance instead of blocking with launchSingleTop.
                 launchSingleTop = false
+
                 // Pop the existing ArtistDetail (if any) so screens don't stack.
-                navController.currentBackStackEntry?.destination?.route?.let { currentRoute ->
-                    if (currentRoute == Screen.ArtistDetail.route) {
-                        popUpTo(Screen.ArtistDetail.route) { inclusive = true }
-                    }
+                // We use inclusive = true on the route pattern to clear any previous artist detail.
+                popUpTo(Screen.ArtistDetail.route) {
+                    inclusive = true
                 }
             }
         }

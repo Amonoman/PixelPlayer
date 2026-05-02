@@ -684,7 +684,15 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val sortOption = playerUiState.value.currentSongSortOption
-                val storageFilter = playerUiState.value.currentStorageFilter
+                
+                // Logic must match effectiveStorageFilter in LibraryStateHolder
+                val baseFilter = playerUiState.value.currentStorageFilter
+                val hideLocal = playerUiState.value.hideLocalMedia
+                val storageFilter = if (hideLocal) {
+                    com.theveloper.pixelplay.data.model.StorageFilter.ONLINE
+                } else {
+                    baseFilter
+                }
 
                 val sortedIds = musicRepository.getSongIdsSorted(sortOption, storageFilter)
 
@@ -696,15 +704,7 @@ class PlayerViewModel @Inject constructor(
                 val index = unifiedId?.let { sortedIds.indexOf(it) } ?: -1
 
                 if (index != -1) {
-                    // Retry loop to account for lazy-loading in LazyColumn
-                    var retries = 5
-                    while (retries > 0) {
-                        _scrollToIndexEvent.emit(index)
-                        delay(200) // Allow time for list to populate/scroll
-                        // Simple check: if list is large enough, assume success
-                        if (index < 1000) break 
-                        retries--
-                    }
+                    _scrollToIndexEvent.emit(index)
                 } else {
                     sendToast(context.getString(R.string.player_song_not_found_in_list))
                 }
@@ -2775,6 +2775,7 @@ class PlayerViewModel @Inject constructor(
                         playbackStateHolder.updateStablePlayerState {
                             it.copy(
                                 currentSong = song,
+                                currentMediaItemIndex = playerCtrl.currentMediaItemIndex,
                                 totalDuration = resolvedDuration,
                                 lyrics = null,
                                 isLoadingLyrics = song != null,

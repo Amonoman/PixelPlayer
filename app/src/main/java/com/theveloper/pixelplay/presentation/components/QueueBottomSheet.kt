@@ -215,6 +215,7 @@ fun QueueBottomSheet(
     queue: List<Song>,
     currentQueueSourceName: String,
     currentSongId: String?,
+    currentMediaItemIndex: Int = -1,
     repeatMode: Int,
     isShuffleOn: Boolean,
     onDismiss: () -> Unit,
@@ -267,8 +268,14 @@ fun QueueBottomSheet(
 
     val isPlaying = infrequentPlayerState.isPlaying
 
-    val currentSongIndex = remember(queue, currentSongId) {
-        queue.indexOfFirst { it.id == currentSongId }
+    // Use the real player index from MediaController if available to resolve duplicates.
+    // Fall back to ID search only if index is invalid (-1).
+    val currentSongIndex = remember(queue, currentSongId, currentMediaItemIndex) {
+        if (currentMediaItemIndex in queue.indices && queue[currentMediaItemIndex].id == currentSongId) {
+            currentMediaItemIndex
+        } else {
+            queue.indexOfFirst { it.id == currentSongId }
+        }
     }
 
     // Read show queue history preference
@@ -808,7 +815,7 @@ fun QueueBottomSheet(
                                         isDragHandleVisible = canReorder,
                                         isRemoveButtonVisible = false,
                                         enableSwipeToDismiss = canReorder,
-                                        swipeStateIdentity = (itemStableKey shl 32) xor queueIndex.toLong(),
+                                        swipeStateIdentity = itemStableKey,
                                         onDismissSong = { onRemoveSong(song.id) },
                                         isFromPlaylist = true,
                                         onMoreOptionsClick = { onSongInfoClick(song) },
