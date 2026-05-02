@@ -122,7 +122,10 @@ fun LibrarySongsTab(
     LaunchedEffect(Unit) {
         playerViewModel.scrollToIndexEvent.collect { index ->
             if (index >= 0) {
-                 launch {
+                 val firstVisible = listState.firstVisibleItemIndex
+                 if (Math.abs(index - firstVisible) > 20) {
+                     listState.scrollToItem(index)
+                 } else {
                      listState.animateScrollToItem(index)
                  }
             }
@@ -171,7 +174,7 @@ fun LibrarySongsTab(
     // - If visible -> Hide button
     // - If not visible -> Show button
 
-    LaunchedEffect(currentSongListIndex, songs, isLoading, listState) {
+    LaunchedEffect(currentSongListIndex, songs, isLoading, listState, currentSongId) {
         // If list is empty or loading, hide button
         if (songs.itemCount == 0 || isLoading) {
             visibilityCallback(false)

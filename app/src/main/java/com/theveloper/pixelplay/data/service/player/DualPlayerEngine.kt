@@ -536,6 +536,37 @@ class DualPlayerEngine @Inject constructor(
                     )
                     .build()
             }
+
+            override fun buildVideoRenderers(
+                context: Context,
+                extensionRendererMode: Int,
+                mediaCodecSelector: MediaCodecSelector,
+                enableDecoderFallback: Boolean,
+                eventHandler: android.os.Handler,
+                eventListener: androidx.media3.exoplayer.video.VideoRendererEventListener,
+                allowedVideoJoiningTimeMs: Long,
+                out: ArrayList<Renderer>
+            ) {
+                // Audio-only player: skip video renderers to save memory and "renderers" count.
+            }
+
+            override fun buildTextRenderers(
+                context: Context,
+                eventListener: androidx.media3.exoplayer.text.TextOutput,
+                outputLooper: android.os.Looper,
+                extensionRendererMode: Int,
+                out: ArrayList<Renderer>
+            ) {
+                // Audio-only player: skip text renderers.
+            }
+
+            override fun buildCameraMotionRenderers(
+                context: Context,
+                extensionRendererMode: Int,
+                out: ArrayList<Renderer>
+            ) {
+                // Audio-only player: skip camera motion renderers.
+            }
         }.setEnableAudioFloatOutput(hiFiModeEnabled)
          .setMediaCodecSelector(mediaCodecSelector)
          .setEnableDecoderFallback(true)
@@ -722,18 +753,35 @@ class DualPlayerEngine @Inject constructor(
             playerB.clearMediaItems()
             
             if (targetIndex != -1) {
-                // If it's part of the current playlist, copy the whole thing!
-                // We do this loop once here, on the main thread (via TransitionController scope),
-                // but it's much better than doing it during the overlap transition 
-                // and triggering multiple timeline updates in the VM.
-                val allItems = ArrayList<MediaItem>(count)
-                for (i in 0 until count) {
-                    val item = timeline.getWindow(i, window).mediaItem
-                    // Use the resolved item (which has the URL) for the target track,
-                    // keep the original ones for the rest.
-                    allItems.add(if (i == targetIndex) resolvedItem else item)
+                // OPTIMIZATION: Use a smaller window for the auxiliary transition player
+                // if the queue is very large. This prevents OOMs and freezes during skips.
+                // We only need a few items to ensure continuity for the transition itself.
+                
+                val maxAuxItems = 200
+                if (count > maxAuxItems) {
+                    val halfWindow = maxAuxItems / 2
+                    val start = (targetIndex - halfWindow).coerceAtLeast(0)
+                    val end = (targetIndex + halfWindow).coerceAtMost(count)
+                    val windowItems = ArrayList<MediaItem>(end - start)
+                    for (i in start until end) {
+                        val item = timeline.getWindow(i, window).mediaItem
+                        windowItems.add(if (i == targetIndex) resolvedItem else item)
+                    }
+                    playerB.setMediaItems(windowItems, targetIndex - start, startPositionMs)
+                    
+                    // Note: This playerB now has a partial timeline. When it becomes master,
+                    // we will need to restore the full timeline if the user wants to see it.
+                    // However, DualPlayerEngine's design swaps players. 
+                    // To maintain the full queue, we should ideally not trim it, 
+                    // but the user is experiencing OOMs.
+                } else {
+                    val allItems = ArrayList<MediaItem>(count)
+                    for (i in 0 until count) {
+                        val item = timeline.getWindow(i, window).mediaItem
+                        allItems.add(if (i == targetIndex) resolvedItem else item)
+                    }
+                    playerB.setMediaItems(allItems, targetIndex, startPositionMs)
                 }
-                playerB.setMediaItems(allItems, targetIndex, startPositionMs)
             } else {
                 // Fallback for single item if not found in current timeline
                 playerB.setMediaItem(resolvedItem)

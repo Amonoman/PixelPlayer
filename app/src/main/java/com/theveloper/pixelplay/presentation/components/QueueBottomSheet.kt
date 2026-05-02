@@ -468,16 +468,23 @@ fun QueueBottomSheet(
     val updatedIsReordering by rememberUpdatedState(isReordering)
     // ----------------------
 
-    // Only jump to current song if the queue is *not* being manually modified.
-    // We can use the drag/reorder state as a signal to suppress this scroll.
-    LaunchedEffect(currentSongDisplayIndex, displaySongCount) {
+    // Only jump to current song when the actual current song changes (e.g. track skip).
+    // This prevents annoying jumps when adding/removing other items in the queue.
+    var isFirstScrollByCurrentSongId by remember(currentSongId) { mutableStateOf(true) }
+
+    LaunchedEffect(currentSongId) {
         if (!isReordering && !reorderHandleInUse && currentSongDisplayIndex >= 0 && currentSongDisplayIndex < displaySongCount) {
-            // Check if we are already close enough to avoid unnecessary jumping
             val firstVisible = listState.firstVisibleItemIndex
             val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            
             if (currentSongDisplayIndex !in firstVisible..lastVisible) {
-                listState.animateScrollToItem(currentSongDisplayIndex)
+                if (isFirstScrollByCurrentSongId || Math.abs(currentSongDisplayIndex - firstVisible) > 20) {
+                    listState.scrollToItem(currentSongDisplayIndex)
+                } else {
+                    listState.animateScrollToItem(currentSongDisplayIndex)
+                }
             }
+            isFirstScrollByCurrentSongId = false
         }
     }
 
@@ -1943,7 +1950,8 @@ fun QueuePlaylistSongItem(
                         modifier = Modifier
                             .size(42.dp)
                             .clip(albumShape),
-                        contentScale = ContentScale.Crop
+                        contentScale = ContentScale.Crop,
+                        targetSize = SmartImageCompactListTargetSize
                     )
 
                     Spacer(Modifier.width(16.dp))

@@ -192,8 +192,8 @@ class MusicService : MediaLibraryService() {
         // JSON+DataStore rewrite on every Media3 event (track transition fires 3-4 listeners
         // within ~200ms) is unnecessary work. 1500ms coalesces those without harming restore.
         private const val PLAYBACK_SNAPSHOT_DEBOUNCE_MS = 1500L
-        private const val FORCED_WIDGET_STATE_DEBOUNCE_MS = 90L
-        private const val MEDIA_SESSION_BUTTON_DEBOUNCE_MS = 90L
+        private const val FORCED_WIDGET_STATE_DEBOUNCE_MS = 250L
+        private const val MEDIA_SESSION_BUTTON_DEBOUNCE_MS = 250L
         private val pendingMediaButtonForegroundStarts = AtomicInteger(0)
 
         private const val APP_PACKAGE_PREFIX = "com.theveloper.pixelplay"
@@ -1130,8 +1130,10 @@ class MusicService : MediaLibraryService() {
             if (nextIndex != androidx.media3.common.C.INDEX_UNSET) {
                 runCatching { prefetchReplayGain(player.getMediaItemAt(nextIndex)) }
             }
-            requestWidgetAndWearRefreshWithFollowUp()
-            mediaSession?.let { refreshMediaSessionUiWithFollowUp(it) }
+            // Optimization: Don't force-update widgets on every rapid skip.
+            // Let the debounced updater handle it to prevent UI freezes.
+            requestWidgetFullUpdate(force = false)
+            mediaSession?.let { refreshMediaSessionUi(it) }
             schedulePlaybackSnapshotPersist()
         }
 
