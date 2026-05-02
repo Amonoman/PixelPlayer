@@ -49,7 +49,7 @@ object ArtworkTransportSanitizer {
         if ((srcWidth <= 0) || (srcHeight <= 0)) return null
 
         val srcMax = max(srcWidth, srcHeight)
-        if (srcMax <= config.maxDimensionPx && source.size <= config.maxBytes) {
+        if ((srcMax <= config.maxDimensionPx) && (source.size <= config.maxBytes)) {
             return source
         }
 
@@ -84,7 +84,7 @@ object ArtworkTransportSanitizer {
                 inSampleSize = sampleSize
                 inPreferredConfig = Bitmap.Config.ARGB_8888
                 inMutable = false
-            }
+            },
         ) ?: return null
 
         val bounded = scaleBitmapIfNeeded(decoded, maxDimensionPx)
@@ -103,7 +103,7 @@ object ArtworkTransportSanitizer {
         val scale = maxDimensionPx.toFloat() / currentMax.toFloat()
         val targetWidth = (bitmap.width * scale).roundToInt().coerceAtLeast(1)
         val targetHeight = (bitmap.height * scale).roundToInt().coerceAtLeast(1)
-        return bitmap.scale(targetWidth, targetHeight, true)
+        return bitmap.scale(targetWidth, targetHeight, filter = true)
     }
 
     private fun encodeBitmap(bitmap: Bitmap, config: Config): ByteArray? {

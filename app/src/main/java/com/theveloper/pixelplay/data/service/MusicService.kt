@@ -799,7 +799,9 @@ class MusicService : MediaLibraryService() {
     }
 
     private fun createSleepTimerPendingIntent(): PendingIntent {
-        val intent = Intent(this, SleepTimerReceiver::class.java)
+        val intent = Intent(this, SleepTimerReceiver::class.java).apply {
+            setPackage(packageName)
+        }
         return PendingIntent.getBroadcast(
             this,
             0,
@@ -1763,6 +1765,7 @@ class MusicService : MediaLibraryService() {
 
     private fun getOpenAppPendingIntent(): PendingIntent {
         val intent = Intent(this, MainActivity::class.java).apply {
+            setPackage(packageName)
             action = WearIntents.ACTION_OPEN_PLAYER
             addCategory(Intent.CATEGORY_DEFAULT)
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP

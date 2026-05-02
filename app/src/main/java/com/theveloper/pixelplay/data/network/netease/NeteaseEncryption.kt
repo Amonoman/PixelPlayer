@@ -49,11 +49,15 @@ object NeteaseEncryption {
         val secretKey = SecretKeySpec(key.toByteArray(StandardCharsets.UTF_8), "AES")
         val cipher = when (mode.lowercase(Locale.ROOT)) {
             "cbc" -> {
+                // CBC with PKCS#7 is required for compatibility with the Netease API
+                // codeql[java/weak-cryptographic-algorithm]
                 Cipher.getInstance("AES/CBC/PKCS7Padding").apply {
                     init(Cipher.ENCRYPT_MODE, secretKey, IvParameterSpec(iv.toByteArray(StandardCharsets.UTF_8)))
                 }
             }
             "ecb" -> {
+                // ECB with PKCS#7 is required for compatibility with the Netease API
+                // codeql[java/weak-cryptographic-algorithm]
                 Cipher.getInstance("AES/ECB/PKCS7Padding").apply {
                     init(Cipher.ENCRYPT_MODE, secretKey)
                 }
