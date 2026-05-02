@@ -1502,8 +1502,7 @@ private fun SongMetadataDisplaySection(
         ) {
             Surface(
                 shape = CircleShape,
-                tonalElevation = 6.dp, 
-                color = LocalMaterialTheme.current.onPrimary,
+                color = chipColor,
                 modifier = Modifier.padding(end = 8.dp)
             ) {
                 Box(
@@ -1512,7 +1511,7 @@ private fun SongMetadataDisplaySection(
                 ) {
                     LoadingIndicator(
                         modifier = Modifier.size(28.dp),
-                        color = LocalMaterialTheme.current.primary
+                        color = chipContentColor
                     )
                 }
             }

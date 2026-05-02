@@ -1153,7 +1153,7 @@ class PlayerViewModel @Inject constructor(
     private val _isMediaControllerReady = MutableStateFlow(false)
     val isMediaControllerReady: StateFlow<Boolean> = _isMediaControllerReady.asStateFlow()
     // SessionToken injected via constructor
-    private val mediaControllerListener = object : MediaController.Listener, Player.Listener {
+    private val mediaControllerListener = object : MediaController.Listener {
         override fun onCustomCommand(
             controller: MediaController,
             command: SessionCommand,
@@ -1172,27 +1172,6 @@ class PlayerViewModel @Inject constructor(
                 return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
             }
             return Futures.immediateFuture(SessionResult(SessionError.ERROR_NOT_SUPPORTED))
-        }
-
-        override fun onPlaybackStateChanged(playbackState: Int) {
-            super.onPlaybackStateChanged(playbackState)
-            
-            // Debounce buffering state to avoid flickering
-            bufferingDebounceJob?.cancel()
-            
-            if (playbackState == Player.STATE_BUFFERING) {
-                bufferingDebounceJob = viewModelScope.launch {
-                    delay(150) // Wait 150ms before showing buffering indicator
-                    playbackStateHolder.updateStablePlayerState { state ->
-                        state.copy(isBuffering = true)
-                    }
-                }
-            } else {
-                // Immediately hide buffering when not buffering
-                playbackStateHolder.updateStablePlayerState { state ->
-                    state.copy(isBuffering = false)
-                }
-            }
         }
     }
     private val mediaControllerFuture: ListenableFuture<MediaController> =
@@ -2844,6 +2823,23 @@ class PlayerViewModel @Inject constructor(
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (isRemoteSessionControllingPlayback()) return
                 refreshPlaybackAudioMetadata(playerCtrl)
+
+                // Debounce buffering state to avoid flickering
+                bufferingDebounceJob?.cancel()
+                if (playbackState == Player.STATE_BUFFERING) {
+                    bufferingDebounceJob = viewModelScope.launch {
+                        delay(150) // Wait 150ms before showing buffering indicator
+                        playbackStateHolder.updateStablePlayerState { state ->
+                            state.copy(isBuffering = true)
+                        }
+                    }
+                } else {
+                    // Immediately hide buffering when not buffering
+                    playbackStateHolder.updateStablePlayerState { state ->
+                        state.copy(isBuffering = false)
+                    }
+                }
+
                 if (playbackState == Player.STATE_READY) {
                     clearPreparingSongIfMatching(playerCtrl.currentMediaItem?.mediaId)
                     val readyPosition = playerCtrl.currentPosition.coerceAtLeast(0L)
