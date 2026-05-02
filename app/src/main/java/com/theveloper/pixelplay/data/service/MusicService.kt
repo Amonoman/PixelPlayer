@@ -46,6 +46,7 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture
 import com.theveloper.pixelplay.PixelPlayApplication
+import com.theveloper.pixelplay.MainActivity
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.PlayerInfo
 import com.theveloper.pixelplay.data.model.PlaybackQueueItemSnapshot
@@ -148,7 +149,7 @@ class MusicService : MediaLibraryService() {
     private var lastReplayGainMediaId: String? = null
 
     private var favoriteSongIds = emptySet<String>()
-    private var mediaSession: MediaLibraryService.MediaLibrarySession? = null
+    private var mediaSession: MediaLibrarySession? = null
     private val controllerLastBrowsedParent = mutableMapOf<String, String>()
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var keepPlayingInBackground = true
@@ -555,7 +556,7 @@ class MusicService : MediaLibraryService() {
                                 SessionResult(SessionError.ERROR_UNKNOWN)
                             )
                         val targetFavoriteState = !favoriteSongIds.contains(songId)
-                        return@onCustomCommand setCurrentSongFavoriteState(
+                        return setCurrentSongFavoriteState(
                             session = session,
                             targetFavoriteState = targetFavoriteState
                         )
@@ -565,7 +566,7 @@ class MusicService : MediaLibraryService() {
                             MusicNotificationProvider.EXTRA_FAVORITE_ENABLED,
                             false
                         )
-                        return@onCustomCommand setCurrentSongFavoriteState(
+                        return setCurrentSongFavoriteState(
                             session = session,
                             targetFavoriteState = enabled
                         )
@@ -791,18 +792,14 @@ class MusicService : MediaLibraryService() {
                 key.contains(marker, ignoreCase = true)
             }
         }
-        if (!hasWearHints) {
-            return false
-        }
+        return hasWearHints
         // If hints identify a Wear/remote controller and it's not our app package,
         // reject to avoid the default Wear system media player hijacking the session.
         return true
     }
 
     private fun createSleepTimerPendingIntent(): PendingIntent {
-        val intent = Intent(this, SleepTimerReceiver::class.java).apply {
-            setPackage(packageName)
-        }
+        val intent = Intent(this, SleepTimerReceiver::class.java)
         return PendingIntent.getBroadcast(
             this,
             0,
@@ -897,11 +894,7 @@ class MusicService : MediaLibraryService() {
                 this,
                 NOTIFICATION_ID,
                 notification,
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
-                } else {
-                    0
-                }
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
             )
         } catch (e: Exception) {
             Timber.tag(TAG).w(e, "Failed to promote service to foreground for external command")
@@ -1769,8 +1762,8 @@ class MusicService : MediaLibraryService() {
     }
 
     private fun getOpenAppPendingIntent(): PendingIntent {
-        val intent = Intent(WearIntents.ACTION_OPEN_PLAYER).apply {
-            `package` = packageName
+        val intent = Intent(this, MainActivity::class.java).apply {
+            action = WearIntents.ACTION_OPEN_PLAYER
             addCategory(Intent.CATEGORY_DEFAULT)
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("ACTION_SHOW_PLAYER", true) // Signal to MainActivity to show the player
@@ -1789,7 +1782,7 @@ class MusicService : MediaLibraryService() {
     private var followUpMediaSessionUiRefreshJob: Job? = null
     private var mediaSessionButtonRefreshJob: Job? = null
     private var lastAppliedMediaButtonSignature: String? = null
-    private val WIDGET_STATE_DEBOUNCE_MS = 300L
+    private val widgetStateDebounceMs = 300L
 
     private fun requestWidgetFullUpdate(force: Boolean = false) {
         debouncedWidgetUpdateJob?.cancel()
@@ -1797,7 +1790,7 @@ class MusicService : MediaLibraryService() {
             val debounceMs = if (force) {
                 FORCED_WIDGET_STATE_DEBOUNCE_MS
             } else {
-                WIDGET_STATE_DEBOUNCE_MS
+                widgetStateDebounceMs
             }
             if (debounceMs > 0L) {
                 delay(debounceMs)
@@ -1950,7 +1943,7 @@ class MusicService : MediaLibraryService() {
         val remoteQueueItems = remoteStatus?.queueItems.orEmpty()
         if (remoteQueueItems.isNotEmpty()) {
             val remoteCurrentIndex = remoteQueueItems.indexOfFirst {
-                it.itemId == remoteStatus?.getCurrentItemId()
+                it.itemId == remoteStatus?.currentItemId
             }.takeIf { it >= 0 } ?: 0
             val remoteTokens = remoteQueueItems.map { item ->
                 item.customData
@@ -1959,7 +1952,7 @@ class MusicService : MediaLibraryService() {
                     ?: item.media?.contentId
                     ?: item.itemId.toString()
             }
-            return encodeWearQueueRevision(remoteTokens, remoteCurrentIndex)
+            return encodeWearQueueRevision(remoteTokens, remoteStatus?.currentItemId ?: 0)
         }
 
         if (timeline.isEmpty) {
@@ -2325,7 +2318,7 @@ class MusicService : MediaLibraryService() {
             ?: if (rawArtworkUri.startsWith("/")) {
                 Uri.fromFile(java.io.File(rawArtworkUri))
             } else {
-                runCatching { Uri.parse(rawArtworkUri) }.getOrNull()
+                runCatching { rawArtworkUri.toUri() }.getOrNull()
             }
     }
 
@@ -2527,10 +2520,6 @@ class MusicService : MediaLibraryService() {
         return songId != null && favoriteSongIds.contains(songId)
     }
 
-    fun isManualShuffleEnabled(): Boolean {
-        return isManualShuffleEnabled
-    }
-
     override fun onUpdateNotification(session: MediaSession, startInForegroundRequired: Boolean) {
         val playWhenReady = session.player.playWhenReady
         val playbackState = session.player.playbackState
@@ -2637,7 +2626,7 @@ class MusicService : MediaLibraryService() {
         endOfTrackTimerSongId = null
 
         if (preservePlaybackSnapshot) {
-            persistPlaybackSnapshotBlocking(playWhenReadyOverride = false)
+            persistPlaybackSnapshotBlocking()
         } else {
             clearPlaybackSnapshotBlocking()
         }
@@ -2652,8 +2641,8 @@ class MusicService : MediaLibraryService() {
         stopSelf()
     }
 
-    private fun persistPlaybackSnapshotBlocking(playWhenReadyOverride: Boolean? = null) {
-        val snapshot = capturePlaybackSnapshotFromPlayer(playWhenReadyOverride)
+    private fun persistPlaybackSnapshotBlocking() {
+        val snapshot = capturePlaybackSnapshotFromPlayer(playWhenReadyOverride = false)
         writePlaybackSnapshotBlocking(snapshot)
     }
 
