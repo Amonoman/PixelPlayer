@@ -32,6 +32,22 @@ fun NavController.navigateSafely(
     return true
 }
 
+fun NavController.navigateSafelyReplacing(
+    route: String,
+    patternToPop: String,
+    builder: NavOptionsBuilder.() -> Unit = {}
+): Boolean {
+    if (!isReadyForNavigation()) return false
+    navigate(route) {
+        launchSingleTop = false
+        popUpTo(patternToPop) {
+            inclusive = true
+        }
+        builder()
+    }
+    return true
+}
+
 fun NavController.navigateToTopLevelSafely(route: String): Boolean {
     val startDestinationId = runCatching { graph.startDestinationId }.getOrNull() ?: return false
     navigate(route) {
