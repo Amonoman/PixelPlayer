@@ -551,7 +551,7 @@ private fun compatibleMimeTypes(mimeType: String): Set<String> {
         "audio/mpeg" -> setOf("audio/mpeg", "audio/mp3", "audio/x-mp3", "audio/mpeg3")
         "audio/mp4a-latm" -> setOf("audio/mp4a-latm", "audio/aac", "audio/x-aac", "audio/m4a", "audio/mp4", "audio/aacp")
         "audio/flac" -> setOf("audio/flac", "audio/x-flac")
-        "audio/wav" -> setOf("audio/wav", "audio/x-wav", "audio/wave", "audio/vnd.wave")
+        "audio/wav" -> setOf("audio/wav", "audio/x-wav", "audio/wave", "audio/vnd.wave", "audio/raw")
         "audio/vorbis" -> setOf("audio/vorbis", "audio/ogg", "audio/x-vorbis", "application/ogg")
         "audio/x-ms-wma" -> setOf("audio/x-ms-wma", "audio/wma")
         "audio/x-aiff" -> setOf("audio/x-aiff", "audio/aiff", "audio/aif", "audio/x-aifc")
@@ -561,7 +561,7 @@ private fun compatibleMimeTypes(mimeType: String): Set<String> {
         "audio/amr-wb" -> setOf("audio/amr-wb")
         "audio/evrc" -> setOf("audio/evrc", "audio/x-evrc")
         "audio/qcelp" -> setOf("audio/qcelp", "audio/x-qcelp")
-        "audio/x-ima-adpcm" -> setOf("audio/x-ima-adpcm", "audio/ima-adpcm")
+        "audio/x-ima-adpcm" -> setOf("audio/x-ima-adpcm", "audio/ima-adpcm", "audio/raw")
         else -> setOf(normalized)
     }
 }
