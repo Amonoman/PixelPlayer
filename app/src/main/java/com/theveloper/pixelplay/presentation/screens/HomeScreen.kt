@@ -38,6 +38,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -227,6 +228,11 @@ fun HomeScreen(
 
     val weeklyStats by statsViewModel.weeklyOverview.collectAsStateWithLifecycle()
 
+    val listState = rememberLazyListState()
+    val isScrolledPastThreshold = remember {
+        derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 180 }
+    }
+
     // Drawer state for sidebar
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val shouldShowCleanInstallDisclaimer =
@@ -254,12 +260,13 @@ fun HomeScreen(
                     },
                     onMenuClick = {
                         // onOpenSidebar() // Disabled
-                    }
+                    },
+                    isScrolled = isScrolledPastThreshold.value
                 )
             }
         ) { innerPadding ->
             LazyColumn(
-                state = rememberLazyListState(),
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.background),
