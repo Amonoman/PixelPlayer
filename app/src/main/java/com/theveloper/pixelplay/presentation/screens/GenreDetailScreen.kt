@@ -116,6 +116,7 @@ fun GenreDetailScreen(
     val lazyListState = rememberLazyListState()
 
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val minTopBarHeight = 58.dp + statusBarHeight // Reduced by 6dp from 64.dp
     val maxTopBarHeight = 200.dp
     val minTopBarHeightPx = with(density) { minTopBarHeight.toPx() }
@@ -247,7 +248,7 @@ fun GenreDetailScreen(
     )
     val isMiniPlayerVisible = stablePlayerState.currentSong != null
     val fabBottomPadding by animateDpAsState(
-        targetValue = if (isMiniPlayerVisible) MiniPlayerHeight + 16.dp else 16.dp,
+        targetValue = if (isMiniPlayerVisible) MiniPlayerHeight + systemNavBarInset + 16.dp else systemNavBarInset + 16.dp,
         label = "fabPadding"
     )
 
