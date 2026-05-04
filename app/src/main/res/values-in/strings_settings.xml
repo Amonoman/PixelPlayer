@@ -74,6 +74,7 @@
     <string name="setcat_language_russian">Rusia</string>
     <string name="setcat_language_chinese">Tionghoa (Sederhana)</string>
     <string name="setcat_language_indonesian">Indonesia</string>
+    <string name="setcat_language_italian">Italia</string>
     <string name="setcat_app_theme_label">Tema Aplikasi</string>
     <string name="setcat_app_theme_desc">Beralih antara terang, gelap, atau ikuti tampilan sistem.</string>
     <string name="setcat_theme_light">Tema Terang</string>

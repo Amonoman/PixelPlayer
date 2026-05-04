@@ -3,6 +3,7 @@
 package com.theveloper.pixelplay.presentation.screens
 
 import com.theveloper.pixelplay.presentation.navigation.navigateSafely
+import com.theveloper.pixelplay.presentation.navigation.navigateSafelyReplacing
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
@@ -416,16 +417,25 @@ fun AlbumDetailScreen(
                     },
                     onDeleteFromDevice = playerViewModel::deleteFromDevice,
                     onNavigateToAlbum = {
-                        navController.navigateSafely(Screen.AlbumDetail.createRoute(currentSong.albumId))
+                        navController.navigateSafelyReplacing(
+                            route = Screen.AlbumDetail.createRoute(currentSong.albumId),
+                            patternToPop = Screen.AlbumDetail.route
+                        )
                         showSongInfoBottomSheet = false
                     },
                     onNavigateToArtist = {
-                        navController.navigateSafely(Screen.ArtistDetail.createRoute(currentSong.artistId))
+                        navController.navigateSafelyReplacing(
+                            route = Screen.ArtistDetail.createRoute(currentSong.artistId),
+                            patternToPop = Screen.ArtistDetail.route
+                        )
                         showSongInfoBottomSheet = false
                     },
                     onNavigateToGenre = {
                         currentSong.genre?.let {
-                            navController.navigateSafely(Screen.GenreDetail.createRoute(java.net.URLEncoder.encode(it, "UTF-8")))
+                            navController.navigateSafelyReplacing(
+                                route = Screen.GenreDetail.createRoute(java.net.URLEncoder.encode(it, "UTF-8")),
+                                patternToPop = Screen.GenreDetail.route
+                            )
                         }
                         showSongInfoBottomSheet = false
                     },

@@ -535,7 +535,7 @@ class MusicRepositoryImpl @Inject constructor(
 
     // --- Métodos de Búsqueda ---
 
-    override fun searchSongs(query: String): Flow<List<Song>> {
+    override fun searchSongs(query: String, titleOnly: Boolean): Flow<List<Song>> {
         if (query.isBlank()) return flowOf(emptyList())
         return combine(
             userPreferencesRepository.allowedDirectoriesFlow,
@@ -551,7 +551,8 @@ class MusicRepositoryImpl @Inject constructor(
                         query = query,
                         allowedParentDirs = allowedParentDirs,
                         applyDirectoryFilter = applyDirectoryFilter,
-                        limit = SEARCH_RESULTS_LIMIT
+                        limit = SEARCH_RESULTS_LIMIT,
+                        titleOnly = titleOnly
                     )
                 )
             }.flatMapLatest { it }
@@ -608,7 +609,7 @@ class MusicRepositoryImpl @Inject constructor(
                         }
                     }
                 }
-                SearchFilterType.SONGS -> searchSongs(query).map { songs -> songs.map { SearchResultItem.SongItem(it) } }
+                SearchFilterType.SONGS -> searchSongs(query, titleOnly = true).map { songs -> songs.map { SearchResultItem.SongItem(it) } }
                 SearchFilterType.ALBUMS -> searchAlbums(query, minTracks).map { albums -> albums.map { SearchResultItem.AlbumItem(it) } }
                 SearchFilterType.ARTISTS -> searchArtists(query).map { artists -> artists.map { SearchResultItem.ArtistItem(it) } }
                 SearchFilterType.PLAYLISTS -> playlistsFlow.map { playlists -> playlists.map { SearchResultItem.PlaylistItem(it) } }

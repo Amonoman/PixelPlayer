@@ -70,14 +70,6 @@ fun AlbumCarouselSection(
         else Size(albumArtQuality.maxSize, albumArtQuality.maxSize)
     }
 
-    PrefetchAlbumNeighbors(
-        isActive = expansionFraction > 0.08f,
-        pagerState = carouselState.pagerState,
-        queue = queue,
-        radius = 1,
-        targetSize = targetSize
-    )
-
     // Player -> Carousel
     val currentSongIndex = remember(currentSong?.id, queue) {
         val songId = currentSong?.id ?: return@remember 0
@@ -91,22 +83,45 @@ fun AlbumCarouselSection(
         requestedScrollIndex?.takeIf { it in queue.indices }
     }
     val effectiveTargetIndex = requestedTargetIndex ?: currentSongIndex
+
+    PrefetchAlbumNeighbors(
+        isActive = expansionFraction > 0.08f,
+        pagerState = carouselState.pagerState,
+        queue = queue,
+        radius = 1,
+        targetSize = targetSize,
+        anchorIndex = effectiveTargetIndex
+    )
     var ignoreNextSettledSelectionForPage by remember { mutableStateOf<Int?>(null) }
     var programmaticScrollInProgress by remember { mutableStateOf(false) }
+    var lastSettledSongId by remember { mutableStateOf(currentSong?.id) }
     LaunchedEffect(effectiveTargetIndex, requestedTargetIndex, queue) {
         snapshotFlow { carouselState.pagerState.isScrollInProgress }
             .first { !it }
-        if (carouselState.pagerState.currentPage != effectiveTargetIndex) {
-            if (requestedTargetIndex != null) {
-                ignoreNextSettledSelectionForPage = effectiveTargetIndex
-            }
-            programmaticScrollInProgress = true
-            try {
-                carouselState.animateScrollToItem(effectiveTargetIndex)
-            } finally {
-                programmaticScrollInProgress = false
+        
+        val currentPage = carouselState.pagerState.currentPage
+        if (currentPage != effectiveTargetIndex) {
+            val isShiftOnly = currentSong?.id != null && 
+                              currentSong.id == lastSettledSongId && 
+                              requestedTargetIndex == null
+            
+            if (isShiftOnly) {
+                // Same song moved to a new index: scroll instantly to maintain focus
+                // and avoid showing the wrong item for the duration of an animation.
+                carouselState.pagerState.scrollToPage(effectiveTargetIndex)
+            } else {
+                if (requestedTargetIndex != null) {
+                    ignoreNextSettledSelectionForPage = effectiveTargetIndex
+                }
+                programmaticScrollInProgress = true
+                try {
+                    carouselState.animateScrollToItem(effectiveTargetIndex)
+                } finally {
+                    programmaticScrollInProgress = false
+                }
             }
         }
+        lastSettledSongId = currentSong?.id
     }
 
     val hapticFeedback = LocalHapticFeedback.current
@@ -140,11 +155,11 @@ fun AlbumCarouselSection(
             itemCornerRadius = corner,
             suppressNoPeekSettleCorrection = requestedTargetIndex != null || programmaticScrollInProgress,
             carouselStyle = if (carouselState.pagerState.pageCount == 1) CarouselStyle.NO_PEEK else carouselStyle, // Handle single-item case
-            carouselWidth = availableWidth // Pass the full width for layout calculations
-        ) { index ->
-            val song = queue[index]
-            val isFocusedItem = carouselState.pagerState.currentPage == index
-            key(song.id) {
+            carouselWidth = availableWidth, // Pass the full width for layout calculations
+            itemKey = { index -> queue.getOrNull(index)?.id ?: index },
+            content = { index ->
+                val song = queue[index]
+                val isFocusedItem = carouselState.pagerState.currentPage == index
                 Box(
                     Modifier
                         .fillMaxSize()
@@ -167,6 +182,6 @@ fun AlbumCarouselSection(
                     )
                 }
             }
-        }
+        )
     }
 }

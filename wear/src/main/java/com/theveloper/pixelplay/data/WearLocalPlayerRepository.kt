@@ -473,7 +473,7 @@ class WearLocalPlayerRepository @Inject constructor(
             currentPositionMs = player.currentPosition,
             totalDurationMs = player.duration.coerceAtLeast(0L),
             isFavorite = currentLocalSong?.isFavorite == true,
-            canToggleFavorite = currentLocalSong != null && currentItem?.mediaId !in transientSongIds,
+            canToggleFavorite = currentLocalSong != null && currentItem.mediaId !in transientSongIds,
             isShuffleEnabled = player.shuffleModeEnabled,
             repeatMode = player.repeatMode,
         )

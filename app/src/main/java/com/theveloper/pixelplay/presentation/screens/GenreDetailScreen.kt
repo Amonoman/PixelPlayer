@@ -1,6 +1,7 @@
 package com.theveloper.pixelplay.presentation.screens
 
 import com.theveloper.pixelplay.presentation.navigation.navigateSafely
+import com.theveloper.pixelplay.presentation.navigation.navigateSafelyReplacing
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 import androidx.compose.animation.*
@@ -497,21 +498,25 @@ fun GenreDetailScreen(
                         },
                         onDeleteFromDevice = playerViewModel::deleteFromDevice,
                         onNavigateToAlbum = {
-                            com.theveloper.pixelplay.presentation.navigation.Screen.AlbumDetail.createRoute(song.albumId).let { route ->
-                                navController.navigateSafely(route)
-                            }
+                            navController.navigateSafelyReplacing(
+                                route = com.theveloper.pixelplay.presentation.navigation.Screen.AlbumDetail.createRoute(song.albumId),
+                                patternToPop = com.theveloper.pixelplay.presentation.navigation.Screen.AlbumDetail.route
+                            )
                             showSongOptionsSheet = null
                         },
                         onNavigateToArtist = {
-                            com.theveloper.pixelplay.presentation.navigation.Screen.ArtistDetail.createRoute(song.artistId).let { route ->
-                                navController.navigateSafely(route)
-                            }
+                            navController.navigateSafelyReplacing(
+                                route = com.theveloper.pixelplay.presentation.navigation.Screen.ArtistDetail.createRoute(song.artistId),
+                                patternToPop = com.theveloper.pixelplay.presentation.navigation.Screen.ArtistDetail.route
+                            )
                             showSongOptionsSheet = null
                         },
                         onNavigateToGenre = {
                             song.genre?.let {
-                                val route = com.theveloper.pixelplay.presentation.navigation.Screen.GenreDetail.createRoute(java.net.URLEncoder.encode(it, "UTF-8"))
-                                navController.navigateSafely(route)
+                                navController.navigateSafelyReplacing(
+                                    route = com.theveloper.pixelplay.presentation.navigation.Screen.GenreDetail.createRoute(java.net.URLEncoder.encode(it, "UTF-8")),
+                                    patternToPop = com.theveloper.pixelplay.presentation.navigation.Screen.GenreDetail.route
+                                )
                             }
                             showSongOptionsSheet = null
                         },
