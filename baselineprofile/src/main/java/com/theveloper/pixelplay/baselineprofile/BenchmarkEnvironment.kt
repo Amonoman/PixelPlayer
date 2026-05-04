@@ -37,6 +37,9 @@ internal fun MacrobenchmarkScope.setupBenchmarkPermissions(packageName: String =
     }
 }
 
+internal fun MacrobenchmarkScope.executeBenchmarkShellCommand(command: String): String =
+    executeShellCommandSafely(command)
+
 internal fun MacrobenchmarkScope.waitForAppForeground(
     context: String,
     packageName: String = benchmarkTargetPackageName(),
@@ -103,7 +106,7 @@ private fun requiredRuntimePermissions(): List<String> = buildList {
 
 private fun MacrobenchmarkScope.executeShellCommandSafely(command: String): String =
     try {
-        device.executeShellCommand("$command 2>&1").orEmpty()
+        device.executeShellCommand(command).orEmpty()
     } catch (exception: Exception) {
         Log.w(TAG, "Ignoring shell failure for: $command", exception)
         exception.message.orEmpty()
