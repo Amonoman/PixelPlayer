@@ -45,7 +45,7 @@ internal fun MacrobenchmarkScope.waitForAppForeground(
     val deadline = System.currentTimeMillis() + timeoutMs
     while (System.currentTimeMillis() < deadline) {
         device.waitForIdle(250L)
-        if (device.currentPackageName == packageName) {
+        if (isTargetPackageVisible(packageName)) {
             return
         }
         Thread.sleep(250L)
@@ -58,7 +58,7 @@ internal fun MacrobenchmarkScope.assertAppForeground(
     packageName: String = benchmarkTargetPackageName()
 ) {
     val currentPackage = device.currentPackageName
-    if (currentPackage == packageName) {
+    if (isTargetPackageVisible(packageName)) {
         return
     }
 
@@ -67,8 +67,8 @@ internal fun MacrobenchmarkScope.assertAppForeground(
     ).compactShellOutput()
 
     throw IllegalStateException(
-        "$context attempted outside the target app. Expected foreground package $packageName, " +
-            "but currentPackage=$currentPackage, focus=$focus"
+        "$context attempted while the target app was not visible. Expected visible package " +
+            "$packageName, but currentPackage(lastAccessibilityPackage)=$currentPackage, focus=$focus"
     )
 }
 
@@ -115,6 +115,9 @@ private fun MacrobenchmarkScope.isPermissionGranted(packageName: String, permiss
         .map { it.trim() }
         .firstOrNull { it.startsWith("$permission:") }
         ?.contains("granted=true") == true
+
+private fun MacrobenchmarkScope.isTargetPackageVisible(packageName: String): Boolean =
+    device.hasObject(By.pkg(packageName))
 
 private fun String.compactShellOutput(): String =
     lineSequence()
