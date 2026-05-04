@@ -4809,6 +4809,30 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun prepareBenchmarkPlayerFromLibrary() {
+        viewModelScope.launch {
+            repeat(90) { attempt ->
+                val controllerReady = mediaController != null
+                val songs = withContext(Dispatchers.IO) {
+                    musicRepository.getAllSongsOnce()
+                }
+                Log.i(
+                    "PixelPlayBenchmark",
+                    "prepare player attempt=$attempt controllerReady=$controllerReady songs=${songs.size}"
+                )
+                if (controllerReady && songs.isNotEmpty()) {
+                    playSongs(songs, songs.first(), "Benchmark Player")
+                    delay(700L)
+                    collapsePlayerSheet()
+                    Log.i("PixelPlayBenchmark", "Benchmark player prepared with ${songs.first().title}")
+                    return@launch
+                }
+                delay(500L)
+            }
+            Log.w("PixelPlayBenchmark", "Unable to prepare benchmark player from library")
+        }
+    }
+
     private var pendingBatchGenreEdit: Pair<List<Song>, String>? = null
 
     fun batchEditGenre(songs: List<Song>, newGenre: String) {
