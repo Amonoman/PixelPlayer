@@ -186,6 +186,9 @@ fun AlbumDetailScreen(
             uiState.album != null -> {
                 val album = uiState.album!!
                 val songs = uiState.songs
+                val songsByDisc = remember(songs) {
+                    songs.groupBy { it.discNumber ?: 1 }
+                }
                 val lazyListState = rememberLazyListState()
 
                 val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -306,22 +309,36 @@ fun AlbumDetailScreen(
                         ),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(
-                            items = songs,
-                            key = { song -> "album_song_${song.id}" },
-                            contentType = { "album_song" }
-                        ) { song ->
-                            EnhancedSongListItem(
-                                song = song,
-                                isCurrentSong = stablePlayerState.currentSong?.id == song.id,
-                                isPlaying = stablePlayerState.isPlaying,
-                                showAlbumArt = false,
-                                onMoreOptionsClick = {
-                                    playerViewModel.selectSongForInfo(song)
-                                    showSongInfoBottomSheet = true
-                                },
-                                onClick = { playerViewModel.showAndPlaySong(song, songs) }
-                            )
+                        songsByDisc.forEach { (discNumber, discSongs) ->
+                            if (songsByDisc.size > 1) {
+                                item(key = "disc_header_$discNumber") {
+                                    Text(
+                                        text = stringResource(R.string.disc_number_header, discNumber),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier
+                                            .padding(top = 16.dp, bottom = 8.dp, start = 8.dp)
+                                    )
+                                }
+                            }
+                            items(
+                                items = discSongs,
+                                key = { song -> "album_song_${song.id}" },
+                                contentType = { "album_song" }
+                            ) { song ->
+                                EnhancedSongListItem(
+                                    song = song,
+                                    isCurrentSong = stablePlayerState.currentSong?.id == song.id,
+                                    isPlaying = stablePlayerState.isPlaying,
+                                    showAlbumArt = false,
+                                    onMoreOptionsClick = {
+                                        playerViewModel.selectSongForInfo(song)
+                                        showSongInfoBottomSheet = true
+                                    },
+                                    onClick = { playerViewModel.showAndPlaySong(song, songs) }
+                                )
+                            }
                         }
                     }
 

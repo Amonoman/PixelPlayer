@@ -271,7 +271,7 @@ class ArtistDetailViewModel @Inject constructor(
     }
 }
 
-private val songDisplayComparator = compareBy<Song> { it.discNumber }
+private val songDisplayComparator = compareBy<Song> { it.discNumber ?: 1 }
     .thenBy { if (it.trackNumber > 0) it.trackNumber else Int.MAX_VALUE }
     .thenBy { it.title.lowercase() }
 
