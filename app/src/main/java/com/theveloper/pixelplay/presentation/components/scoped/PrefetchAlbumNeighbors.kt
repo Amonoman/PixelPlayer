@@ -59,14 +59,21 @@ fun PrefetchAlbumNeighbors(
     pagerState: PagerState,
     queue: ImmutableList<Song>,
     radius: Int = 1,
-    targetSize: Size = Size(600, 600)
+    targetSize: Size = Size(600, 600),
+    anchorIndex: Int? = null
 ) {
     if (!isActive || queue.isEmpty()) return
     val context = LocalContext.current
     val imageLoader = coil.Coil.imageLoader(context)
 
-    LaunchedEffect(pagerState, queue) {
-        snapshotFlow { pagerState.currentPage }
+    LaunchedEffect(pagerState, queue, anchorIndex) {
+        snapshotFlow { 
+            // If the user is manually scrolling, follow the PagerState.
+            // If the Pager is idle, prioritize the provided anchorIndex (which is tied to the current song)
+            // to avoid fetching neighbors of a stale index after a queue shift.
+            if (pagerState.isScrollInProgress) pagerState.currentPage 
+            else anchorIndex ?: pagerState.currentPage 
+        }
             .distinctUntilChanged()
             .collect { page ->
                 val indices = (page - radius..page + radius)

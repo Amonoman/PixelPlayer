@@ -1,6 +1,7 @@
 package com.theveloper.pixelplay.presentation.screens
 
 import com.theveloper.pixelplay.presentation.navigation.navigateSafely
+import com.theveloper.pixelplay.presentation.navigation.navigateSafelyReplacing
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
@@ -452,11 +453,17 @@ fun SearchScreen(
                 },
                 onDeleteFromDevice = playerViewModel::deleteFromDevice,
                 onNavigateToAlbum = {
-                    navController.navigateSafely(Screen.AlbumDetail.createRoute(currentSong.albumId))
+                    navController.navigateSafelyReplacing(
+                        route = Screen.AlbumDetail.createRoute(currentSong.albumId),
+                        patternToPop = Screen.AlbumDetail.route
+                    )
                     showSongInfoBottomSheet = false
                 },
                 onNavigateToArtist = {
-                    navController.navigateSafely(Screen.ArtistDetail.createRoute(currentSong.artistId))
+                    navController.navigateSafelyReplacing(
+                        route = Screen.ArtistDetail.createRoute(currentSong.artistId),
+                        patternToPop = Screen.ArtistDetail.route
+                    )
                     showSongInfoBottomSheet = false
                 },
                 onNavigateToGenre = {
@@ -786,7 +793,10 @@ fun SearchResultsList(
                                     playerViewModel, onItemSelected
                                 ) {
                                     {
-                                        navController.navigateSafely(Screen.AlbumDetail.createRoute(item.album.id))
+                                        navController.navigateSafelyReplacing(
+                                            route = Screen.AlbumDetail.createRoute(item.album.id),
+                                            patternToPop = Screen.AlbumDetail.route
+                                        )
                                         onItemSelected()
                                     }
                                 }
@@ -811,7 +821,10 @@ fun SearchResultsList(
                                     playerViewModel, onItemSelected
                                 ) {
                                     {
-                                        navController.navigateSafely(Screen.ArtistDetail.createRoute(item.artist.id))
+                                        navController.navigateSafelyReplacing(
+                                            route = Screen.ArtistDetail.createRoute(item.artist.id),
+                                            patternToPop = Screen.ArtistDetail.route
+                                        )
                                         onItemSelected()
                                     }
                                 }

@@ -24,6 +24,15 @@ object MediaItemBuilder {
         "audio/3gp",
         "audio/3gpp",
         "audio/3gpp2",
+        "audio/amr",
+        "audio/amr-wb",
+        "audio/evrc",
+        "audio/qcelp",
+        "audio/x-ima-adpcm",
+        "audio/x-ms-wma",
+        "audio/x-aiff",
+        "audio/ac3",
+        "audio/vnd.dts",
     )
     private val DIRECT_FILE_URI_EXTENSIONS = setOf(
         "m4a",
@@ -35,6 +44,16 @@ object MediaItemBuilder {
         "3gp",
         "3gpp",
         "alac",
+        "amr",
+        "awb",
+        "evrc",
+        "qcp",
+        "ima",
+        "wma",
+        "aif",
+        "aiff",
+        "ac3",
+        "dts",
     )
     private val EXTRACTOR_FIRST_MIME_TYPES = setOf(
         "audio/mp4",
@@ -43,6 +62,7 @@ object MediaItemBuilder {
         "audio/mp4a-latm",
         "audio/alac",
         "audio/x-alac",
+        "audio/x-aiff",
     )
     private val SUPPORTED_INTERNAL_ARTWORK_SCHEMES = setOf(
         LocalArtworkUri.SCHEME,

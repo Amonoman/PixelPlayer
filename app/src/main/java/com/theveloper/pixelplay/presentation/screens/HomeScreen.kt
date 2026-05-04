@@ -1,6 +1,7 @@
 package com.theveloper.pixelplay.presentation.screens
 
 import com.theveloper.pixelplay.presentation.navigation.navigateSafely
+import com.theveloper.pixelplay.presentation.navigation.navigateSafelyReplacing
 
 import android.content.Intent
 import androidx.activity.compose.ReportDrawnWhen
@@ -342,10 +343,16 @@ fun HomeScreen(
                                 navController.navigateSafely(Screen.DailyMixScreen.route)
                             },
                             onNavigateToAlbum = { song ->
-                                navController.navigateSafely(Screen.AlbumDetail.createRoute(song.albumId))
+                                navController.navigateSafelyReplacing(
+                                    route = Screen.AlbumDetail.createRoute(song.albumId),
+                                    patternToPop = Screen.AlbumDetail.route
+                                )
                             },
                             onNavigateToArtist = { song ->
-                                navController.navigateSafely(Screen.ArtistDetail.createRoute(song.artistId))
+                                navController.navigateSafelyReplacing(
+                                    route = Screen.ArtistDetail.createRoute(song.artistId),
+                                    patternToPop = Screen.ArtistDetail.route
+                                )
                             },
                             onNavigateToGenre = { song ->
                                 song.genre?.let {

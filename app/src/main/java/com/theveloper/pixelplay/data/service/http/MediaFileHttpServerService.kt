@@ -37,10 +37,14 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.call
-import io.ktor.server.cio.CIO
+import io.ktor.server.engine.EmbeddedServer
 import io.ktor.server.engine.ApplicationEngine
+import io.ktor.server.engine.connector
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.plugins.origin
+import io.ktor.server.routing.routing
+import io.ktor.server.cio.CIO
+import io.ktor.server.cio.CIOApplicationEngine
 import io.ktor.server.response.header
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondOutputStream
@@ -87,7 +91,7 @@ class MediaFileHttpServerService : Service() {
     @Inject
     lateinit var musicRepository: MusicRepository
 
-    private var server: ApplicationEngine? = null
+    private var server: EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration>? = null
     @Volatile
     private var startInProgress = false
     private val serverStartLock = Any()
@@ -367,17 +371,8 @@ class MediaFileHttpServerService : Service() {
                 lastFailureReason = null
                 lastFailureMessage = null
 
-                server = embeddedServer(
-                    CIO,
-                    port = serverPort,
-                    host = "0.0.0.0",
-                    configure = {
-                        // Keep Ktor's bind behavior consistent with our port probe and reduce
-                        // false "Address already in use" failures on quick Cast server restarts.
-                        reuseAddress = true
-                    }
-                ) {
-                        routing {
+                server = embeddedServer(CIO, port = serverPort, host = "0.0.0.0") {
+                    routing {
                             get("/health") {
                                 if (!call.ensureLoopbackHealthRequest()) return@get
                                 call.respond(HttpStatusCode.OK, "ok")
