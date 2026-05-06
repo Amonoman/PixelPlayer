@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_tap_to_open">Нажмите, чтобы открыть</string>
+    <string name="widget_album_art">Обложка альбома</string>
+    <string name="widget_album_art_placeholder">Заглушка обложки альбома</string>
+    <string name="cd_favorite">В избранное</string>
+    <string name="cd_play">Играть</string>
+    <string name="cd_pause">Пауза</string>
+    <string name="widget_tap_to_play">Нажмите, чтобы играть</string>
+    <string name="widget_preview_song_title">Название песни</string>
+    <string name="widget_preview_artist">Исполнитель</string>
+    <string name="cd_repeat">Повтор</string>
+    <string name="widget_wavy_progress_bar_desc">Индикатор выполнения, %1$d процентов</string>
+
+    <!-- Lyrics more bottom sheet -->
+    <string name="lyrics_more_appearance">Внешний вид</string>
+    <string name="lyrics_more_alignment">Выравнивание</string>
+    <string name="lyrics_more_controls">Управление</string>
+    <string name="lyrics_more_dialog_reset_title">Сбросить текст?</string>
+    <string name="lyrics_more_dialog_reset_message">Вы уверены, что хотите сбросить текст для этой песни?</string>
+    <string name="lyrics_more_hide_sync_controls">Скрыть кнопки синхронизации</string>
+    <string name="lyrics_more_adjust_sync">Настроить синхронизацию</string>
+    <string name="lyrics_more_show_romanization">Показать транслитерацию</string>
+    <string name="lyrics_more_show_translations">Показать перевод</string>
+    <string name="lyrics_more_disable_immersive_once">Отключить иммерсивный режим (один раз)</string>
+    <string name="cd_lyrics_align_left">Текст по левому краю</string>
+    <string name="cd_lyrics_align_center">Текст по центру</string>
+    <string name="cd_lyrics_align_right">Текст по правому краю</string>
+
+    <!-- No internet -->
+    <string name="no_internet_dialog_title">Нет подключения к интернету</string>
+    <string name="no_internet_dialog_message">Для этого контента требуется подключение к интернету. Пожалуйста, проверьте настройки сети и попробуйте снова.</string>
+    <string name="offline_screen_title">Вы не в сети</string>
+    <string name="offline_screen_message">Пожалуйста, проверьте подключение к интернету и попробуйте снова, чтобы получить доступ к этому контенту.</string>
+
+    <!-- Equalizer preset dialogs -->
+    <string name="equalizer_save_custom_preset_title">Сохранить пользовательский пресет</string>
+    <string name="equalizer_save_custom_preset_body">Введите имя для вашего пользовательского пресета эквалайзера.</string>
+    <string name="equalizer_preset_name_label">Имя пресета</string>
+    <string name="equalizer_rename_preset_title">Переименовать пресет</string>
+    <string name="error_name_empty">Имя не может быть пустым</string>
+    <string name="action_save">Сохранить</string>
+    <string name="action_rename">Переименовать</string>
+
+    <!-- AI metadata sheet -->
+    <string name="ai_metadata_headline_success">Идеально размечено!</string>
+    <string name="ai_metadata_headline_default">Метаданные ИИ</string>
+    <string name="ai_metadata_subtitle_generating">Сверяемся с руководством по миксу дня…</string>
+    <string name="ai_metadata_subtitle_review">Проверьте и уточните сгенерированные данные</string>
+    <string name="song_field_title">Название</string>
+    <string name="song_field_artist">Исполнитель</string>
+    <string name="song_field_album">Альбом</string>
+    <string name="song_field_genre">Жанр</string>
+    <string name="action_try_again">Попробовать снова</string>
+    <string name="action_apply_changes">Применить изменения</string>
+
+    <!-- Edit song metadata sheet -->
+    <string name="edit_song_info_dialog_title">Редактирование метаданных песни</string>
+    <string name="edit_song_info_dialog_body">Редактирование метаданных песни может повлиять на ее отображение и сортировку в библиотеке. Изменения постоянны и не могут быть отменены.</string>
+    <string name="edit_song_got_it">Понятно</string>
+    <string name="cd_info_icon">Информация</string>
+    <string name="edit_song_toolbar_title">Изменить песню</string>
+    <string name="cd_use_gemini_ai">Использовать Gemini ИИ</string>
+    <string name="cd_show_metadata_info">Показать информацию</string>
+    <string name="song_field_track_number">Номер трека</string>
+    <string name="song_field_disc_number">Номер диска</string>
+    <string name="song_field_replaygain_track_db">ReplayGain трека (дБ)</string>
+    <string name="song_field_replaygain_album_db">ReplayGain альбома (дБ)</string>
+    <string name="placeholder_replaygain_track_example">-6.50</string>
+    <string name="placeholder_replaygain_album_example">-8.20</string>
+    <string name="cd_replaygain_track">ReplayGain трека</string>
+    <string name="cd_replaygain_album">ReplayGain альбома</string>
+    <string name="cd_song_title_icon">Название</string>
+    <string name="cd_track_number_icon">Номер трека</string>
+    <string name="cd_disc_number_icon">Номер диска</string>
+    <string name="cd_search_lyrics_lrclib">Искать текст на lrclib.net</string>
+    <string name="edit_song_cover_art_heading">Обложка</string>
+    <string name="edit_song_cover_art_hint">Выберите квадратное изображение и настройте его, чтобы обложка отлично смотрелась в приложении.</string>
+    <string name="edit_song_change_cover_art">Изменить обложку</string>
+    <string name="edit_song_delete_cover_art">Удалить обложку</string>
+    <string name="cd_cover_art_preview">Предпросмотр новой обложки</string>
+    <string name="cd_current_song_cover_art">Текущая обложка песни</string>
+    <string name="edit_song_crop_dialog_title">Настройте вашу обложку</string>
+    <string name="edit_song_crop_dialog_hint">Используйте жесты сжатия и перетаскивания, чтобы подобрать идеальное кадрирование.</string>
+    <string name="edit_song_apply_cover_art">Применить обложку</string>
+    <string name="edit_song_unable_to_load_image">Не удалось загрузить выбранное изображение</string>
+
+    <!-- Song info bottom sheet -->
+    <string name="song_info_share_chooser_title">Поделиться файлом песни через</string>
+    <string name="cd_play_song_action">Слушать песню</string>
+    <string name="cd_share_song_file">Поделиться файлом песни</string>
+    <string name="cd_add_to_queue">Добавить в очередь</string>
+    <string name="cd_play_next_in_queue">Играть следующей</string>
+    <string name="cd_add_to_playlist">Добавить в плейлист</string>
+    <string name="action_add_to_queue">В очередь</string>
+    <string name="action_queue_next">Следующая</string>
+    <string name="song_info_checking_watch">Проверка часов</string>
+    <string name="song_info_transferring_percent">Передача %1$d%%</string>
+    <string name="song_info_transferring_to_watch">Передача на часы</string>
+    <string name="song_info_transfer_in_progress">Идет передача</string>
+    <string name="song_info_send_to_watch">Отправить на часы</string>
+    <string name="song_info_watch_unavailable">Часы недоступны</string>
+    <string name="cd_send_song_to_watch">Отправить песню на часы</string>
+    <string name="cd_watch_unavailable">Часы недоступны</string>
+    <string name="song_info_label_duration">Длительность</string>
+    <string name="song_info_label_song_metadata">Информация</string>
+    <string name="cd_duration_icon">Длительность</string>
+    <string name="cd_genre_icon">Жанр</string>
+    <string name="cd_album_icon">Альбом</string>
+    <string name="cd_artist_icon">Исполнитель</string>
+    <string name="cd_audio_format_icon">Аудиоформат</string>
+    <string name="cd_provider_icon">Источник</string>
+    <string name="cd_file_icon">Файл</string>
+    <string name="cd_edit_song_metadata">Изменить метаданные</string>
+    <string name="cd_remove_from_favorites">Удалить из избранного</string>
+    <string name="cd_add_to_favorites">Добавить в избранное</string>
+    <string name="song_info_tab_options">Опции</string>
+    <string name="song_info_tab_options_badge">ОПЦИИ</string>
+    <string name="song_info_tab_details">Детали</string>
+    <string name="song_info_tab_info_badge">ИНФО</string>
+    <string name="cd_details_tab">Детали</string>
+
+    <!-- Multi-selection bottom sheet -->
+    <string name="multi_selection_songs_count_upper">%1$d ПЕСЕН</string>
+    <string name="multi_selection_selected">выбрано</string>
+    <string name="cd_play_all">Слушать все</string>
+    <string name="action_play_all">Слушать все</string>
+    <string name="cd_like_all">Лайкнуть все</string>
+    <string name="cd_unlike_all">Убрать лайк со всех</string>
+    <string name="cd_share_all_as_zip">Поделиться как ZIP</string>
+    <string name="cd_add_all_to_queue">Добавить все в очередь</string>
+    <string name="cd_delete_all_songs">Удалить все</string>
+    <string name="action_delete_all">Удалить все</string>
+
+    <string name="playlist_dismissed_message">Плейлист убран</string>
+    <string name="action_undo">Отменить</string>
+    <string name="home_option_dj_mashup">DJ Микс</string>
+    <string name="create_playlist_dialog_title">Новый плейлист</string>
+    <string name="create_playlist_name_label">Имя плейлиста</string>
+    <string name="create_playlist_name_placeholder">Мой плейлист</string>
+    <string name="action_create">Создать</string>
+    <string name="playlist_picker_add_songs_title">Добавить %1$d песен в…</string>
+    <string name="playlist_picker_select_playlists">Выбрать плейлисты</string>
+    <string name="search_playlists_hint">Искать плейлисты…</string>
+
+    <string name="multi_selection_playlists_count_upper">%1$d ПЛЕЙЛИСТОВ</string>
+    <string name="cd_export_all">Экспорт всех</string>
+    <string name="cd_merge_all">Объединить все</string>
+    <string name="cd_share_all">Поделиться всеми</string>
+    <string name="action_export">Экспорт</string>
+    <string name="action_merge">Объединить</string>
+
+    <string name="reorder_tabs_sheet_title">Изменить порядок вкладок</string>
+    <string name="reorder_tabs_reset_dialog_title">Сбросить порядок</string>
+    <string name="reorder_tabs_reset_dialog_body">Сбросить порядок вкладок по умолчанию?</string>
+    <string name="reorder_tabs_reordering">Изменение порядка…</string>
+    <string name="cd_drag_handle">Ползунок перемещения</string>
+    <string name="cd_reset">Сбросить</string>
+    <string name="action_done">Готово</string>
+</resources>
