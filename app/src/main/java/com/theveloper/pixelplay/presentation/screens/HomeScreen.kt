@@ -1,6 +1,7 @@
 package com.theveloper.pixelplay.presentation.screens
 
 import com.theveloper.pixelplay.presentation.navigation.navigateSafely
+import com.theveloper.pixelplay.presentation.navigation.navigateSafelyReplacing
 
 import android.content.Intent
 import androidx.activity.compose.ReportDrawnWhen
@@ -37,6 +38,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -52,6 +54,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextStyle
@@ -226,6 +229,13 @@ fun HomeScreen(
 
     val weeklyStats by statsViewModel.weeklyOverview.collectAsStateWithLifecycle()
 
+    val listState = rememberLazyListState()
+    val density = LocalDensity.current
+    val scrollThresholdPx = remember(density) { with(density) { 180.dp.toPx() } }
+    val isScrolledPastThreshold = remember {
+        derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > scrollThresholdPx }
+    }
+
     // Drawer state for sidebar
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val shouldShowCleanInstallDisclaimer =
@@ -253,12 +263,13 @@ fun HomeScreen(
                     },
                     onMenuClick = {
                         // onOpenSidebar() // Disabled
-                    }
+                    },
+                    isScrolled = isScrolledPastThreshold.value
                 )
             }
         ) { innerPadding ->
             LazyColumn(
-                state = rememberLazyListState(),
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.background),
@@ -342,10 +353,16 @@ fun HomeScreen(
                                 navController.navigateSafely(Screen.DailyMixScreen.route)
                             },
                             onNavigateToAlbum = { song ->
-                                navController.navigateSafely(Screen.AlbumDetail.createRoute(song.albumId))
+                                navController.navigateSafelyReplacing(
+                                    route = Screen.AlbumDetail.createRoute(song.albumId),
+                                    patternToPop = Screen.AlbumDetail.route
+                                )
                             },
                             onNavigateToArtist = { song ->
-                                navController.navigateSafely(Screen.ArtistDetail.createRoute(song.artistId))
+                                navController.navigateSafelyReplacing(
+                                    route = Screen.ArtistDetail.createRoute(song.artistId),
+                                    patternToPop = Screen.ArtistDetail.route
+                                )
                             },
                             onNavigateToGenre = { song ->
                                 song.genre?.let {

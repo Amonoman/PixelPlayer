@@ -46,6 +46,7 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture
 import com.theveloper.pixelplay.PixelPlayApplication
+import com.theveloper.pixelplay.MainActivity
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.PlayerInfo
 import com.theveloper.pixelplay.data.model.PlaybackQueueItemSnapshot
@@ -91,6 +92,8 @@ import com.theveloper.pixelplay.presentation.viewmodel.ColorSchemePair
 import com.theveloper.pixelplay.shared.WearIntents
 import com.theveloper.pixelplay.utils.ArtworkTransportSanitizer
 import com.theveloper.pixelplay.utils.MediaItemBuilder
+import com.theveloper.pixelplay.data.navidrome.NavidromeRepository
+import com.theveloper.pixelplay.di.AppScope
 import kotlin.math.abs
 import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
@@ -133,6 +136,11 @@ class MusicService : MediaLibraryService() {
     lateinit var wearStatePublisher: WearStatePublisher
     @Inject
     lateinit var replayGainManager: com.theveloper.pixelplay.data.media.ReplayGainManager
+    @Inject
+    lateinit var navidromeRepository: NavidromeRepository
+    @Inject
+    @AppScope
+    lateinit var appScope: CoroutineScope
 
     private var replayGainEnabled = false
     private var replayGainUseAlbumGain = false
@@ -148,7 +156,7 @@ class MusicService : MediaLibraryService() {
     private var lastReplayGainMediaId: String? = null
 
     private var favoriteSongIds = emptySet<String>()
-    private var mediaSession: MediaLibraryService.MediaLibrarySession? = null
+    private var mediaSession: MediaLibrarySession? = null
     private val controllerLastBrowsedParent = mutableMapOf<String, String>()
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var keepPlayingInBackground = true
@@ -192,8 +200,8 @@ class MusicService : MediaLibraryService() {
         // JSON+DataStore rewrite on every Media3 event (track transition fires 3-4 listeners
         // within ~200ms) is unnecessary work. 1500ms coalesces those without harming restore.
         private const val PLAYBACK_SNAPSHOT_DEBOUNCE_MS = 1500L
-        private const val FORCED_WIDGET_STATE_DEBOUNCE_MS = 90L
-        private const val MEDIA_SESSION_BUTTON_DEBOUNCE_MS = 90L
+        private const val FORCED_WIDGET_STATE_DEBOUNCE_MS = 250L
+        private const val MEDIA_SESSION_BUTTON_DEBOUNCE_MS = 250L
         private val pendingMediaButtonForegroundStarts = AtomicInteger(0)
 
         private const val APP_PACKAGE_PREFIX = "com.theveloper.pixelplay"
@@ -555,7 +563,7 @@ class MusicService : MediaLibraryService() {
                                 SessionResult(SessionError.ERROR_UNKNOWN)
                             )
                         val targetFavoriteState = !favoriteSongIds.contains(songId)
-                        return@onCustomCommand setCurrentSongFavoriteState(
+                        return setCurrentSongFavoriteState(
                             session = session,
                             targetFavoriteState = targetFavoriteState
                         )
@@ -565,7 +573,7 @@ class MusicService : MediaLibraryService() {
                             MusicNotificationProvider.EXTRA_FAVORITE_ENABLED,
                             false
                         )
-                        return@onCustomCommand setCurrentSongFavoriteState(
+                        return setCurrentSongFavoriteState(
                             session = session,
                             targetFavoriteState = enabled
                         )
@@ -791,16 +799,16 @@ class MusicService : MediaLibraryService() {
                 key.contains(marker, ignoreCase = true)
             }
         }
-        if (!hasWearHints) {
-            return false
-        }
+        return hasWearHints
         // If hints identify a Wear/remote controller and it's not our app package,
         // reject to avoid the default Wear system media player hijacking the session.
         return true
     }
 
     private fun createSleepTimerPendingIntent(): PendingIntent {
-        val intent = Intent(this, SleepTimerReceiver::class.java)
+        val intent = Intent(this, SleepTimerReceiver::class.java).apply {
+            setPackage(packageName)
+        }
         return PendingIntent.getBroadcast(
             this,
             0,
@@ -895,11 +903,7 @@ class MusicService : MediaLibraryService() {
                 this,
                 NOTIFICATION_ID,
                 notification,
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
-                } else {
-                    0
-                }
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
             )
         } catch (e: Exception) {
             Timber.tag(TAG).w(e, "Failed to promote service to foreground for external command")
@@ -1005,6 +1009,59 @@ class MusicService : MediaLibraryService() {
         return startCommandResult
     }
 
+    private fun getNavidromeId(mediaItem: MediaItem?): String? {
+        if (mediaItem == null) return null
+        return mediaItem.mediaMetadata.extras?.getString(MediaItemBuilder.EXTERNAL_EXTRA_NAVIDROME_ID)
+            ?: mediaItem.mediaId.let { if (it.startsWith("navidrome_")) it.substringAfter("navidrome_") else null }
+            ?: mediaItem.mediaMetadata.extras?.getString(MediaItemBuilder.EXTERNAL_EXTRA_CONTENT_URI)?.let {
+                if (it.startsWith("navidrome://")) it.substringAfter("navidrome://") else null
+            }
+    }
+
+    private fun isNavidromeMediaItem(mediaItem: MediaItem?): Boolean {
+        return getNavidromeId(mediaItem) != null
+    }
+
+    private fun reportNavidromePlayback(state: String) {
+        val player = engine.masterPlayer
+        // Ensure we capture player state on main thread to avoid IllegalStateException
+        val mediaItem = player.currentMediaItem ?: return
+        val navidromeId = getNavidromeId(mediaItem) ?: return
+
+        val positionMs = player.currentPosition
+        val playbackRate = player.playbackParameters.speed
+
+        // Use appScope for the network call so it survives if serviceScope is cancelled
+        appScope.launch(Dispatchers.IO) {
+            navidromeRepository.reportPlayback(
+                navidromeId = navidromeId,
+                positionMs = positionMs,
+                state = state,
+                playbackRate = playbackRate
+            )
+        }
+    }
+
+    private var navidromePlaybackReportJob: Job? = null
+
+    private fun startNavidromePlaybackReporting() {
+        navidromePlaybackReportJob?.cancel()
+        navidromePlaybackReportJob = serviceScope.launch {
+            while (true) {
+                delay(30_000) // Report every 30 seconds
+                val player = engine.masterPlayer
+                if (player.isPlaying && isNavidromeMediaItem(player.currentMediaItem)) {
+                    reportNavidromePlayback("playing")
+                }
+            }
+        }
+    }
+
+    private fun stopNavidromePlaybackReporting() {
+        navidromePlaybackReportJob?.cancel()
+        navidromePlaybackReportJob = null
+    }
+
     private val playerListener = object : Player.Listener {
         override fun onVolumeChanged(volume: Float) {
             if (engine.isTransitionRunning()) return
@@ -1020,6 +1077,16 @@ class MusicService : MediaLibraryService() {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             val player = engine.masterPlayer
             Timber.tag(TAG).d("onIsPlayingChanged: $isPlaying. Duration: ${player.duration}, Seekable: ${player.isCurrentMediaItemSeekable}")
+            
+            if (isPlaying) {
+                reportNavidromePlayback("playing")
+                startNavidromePlaybackReporting()
+            } else {
+                val state = if (player.playbackState == Player.STATE_ENDED) "stopped" else "paused"
+                reportNavidromePlayback(state)
+                stopNavidromePlaybackReporting()
+            }
+
             // Re-apply the last known RG volume immediately when resuming playback.
             // After a pause, ExoPlayer may reset the audio track volume internally,
             // causing a brief full-volume spike before the IO coroutine finishes.
@@ -1058,7 +1125,16 @@ class MusicService : MediaLibraryService() {
         override fun onPlaybackStateChanged(playbackState: Int) {
             Timber.tag(TAG).d("Playback state changed: $playbackState")
             if (playbackState == Player.STATE_ENDED) {
+                val mediaItem = engine.masterPlayer.currentMediaItem
+                getNavidromeId(mediaItem)?.let { navidromeId ->
+                    appScope.launch(Dispatchers.IO) {
+                        navidromeRepository.scrobble(navidromeId, submission = true)
+                    }
+                }
+
                 endOfTrackTimerSongId = null
+                reportNavidromePlayback("stopped")
+                stopNavidromePlaybackReporting()
             }
             mediaSession?.let { refreshMediaSessionUi(it) }
             schedulePlaybackSnapshotPersist(immediate = playbackState == Player.STATE_IDLE)
@@ -1080,6 +1156,10 @@ class MusicService : MediaLibraryService() {
             newPosition: Player.PositionInfo,
             reason: Int
         ) {
+            if (reason == Player.DISCONTINUITY_REASON_SEEK) {
+                val state = if (engine.masterPlayer.isPlaying) "playing" else "paused"
+                reportNavidromePlayback(state)
+            }
             if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION ||
                 reason == Player.DISCONTINUITY_REASON_SEEK
             ) {
@@ -1100,6 +1180,15 @@ class MusicService : MediaLibraryService() {
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            if (isNavidromeMediaItem(mediaItem)) {
+                reportNavidromePlayback("starting")
+                if (engine.masterPlayer.isPlaying) {
+                    startNavidromePlaybackReporting()
+                }
+            } else {
+                stopNavidromePlaybackReporting()
+            }
+
             val eotTargetSongId = endOfTrackTimerSongId
             if (!eotTargetSongId.isNullOrBlank()) {
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
@@ -1128,8 +1217,10 @@ class MusicService : MediaLibraryService() {
             if (nextIndex != androidx.media3.common.C.INDEX_UNSET) {
                 runCatching { prefetchReplayGain(player.getMediaItemAt(nextIndex)) }
             }
-            requestWidgetAndWearRefreshWithFollowUp()
-            mediaSession?.let { refreshMediaSessionUiWithFollowUp(it) }
+            // Optimization: Don't force-update widgets on every rapid skip.
+            // Let the debounced updater handle it to prevent UI freezes.
+            requestWidgetFullUpdate(force = false)
+            mediaSession?.let { refreshMediaSessionUi(it) }
             schedulePlaybackSnapshotPersist()
         }
 
@@ -1444,6 +1535,8 @@ class MusicService : MediaLibraryService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? = mediaSession
 
     override fun onDestroy() {
+        reportNavidromePlayback("stopped")
+        stopNavidromePlaybackReporting()
         playbackSnapshotPersistJob?.cancel()
         mediaSessionButtonRefreshJob?.cancel()
         followUpMediaSessionUiRefreshJob?.cancel()
@@ -1765,8 +1858,9 @@ class MusicService : MediaLibraryService() {
     }
 
     private fun getOpenAppPendingIntent(): PendingIntent {
-        val intent = Intent(WearIntents.ACTION_OPEN_PLAYER).apply {
-            `package` = packageName
+        val intent = Intent(this, MainActivity::class.java).apply {
+            setPackage(packageName)
+            action = WearIntents.ACTION_OPEN_PLAYER
             addCategory(Intent.CATEGORY_DEFAULT)
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("ACTION_SHOW_PLAYER", true) // Signal to MainActivity to show the player
@@ -1785,7 +1879,7 @@ class MusicService : MediaLibraryService() {
     private var followUpMediaSessionUiRefreshJob: Job? = null
     private var mediaSessionButtonRefreshJob: Job? = null
     private var lastAppliedMediaButtonSignature: String? = null
-    private val WIDGET_STATE_DEBOUNCE_MS = 300L
+    private val widgetStateDebounceMs = 300L
 
     private fun requestWidgetFullUpdate(force: Boolean = false) {
         debouncedWidgetUpdateJob?.cancel()
@@ -1793,7 +1887,7 @@ class MusicService : MediaLibraryService() {
             val debounceMs = if (force) {
                 FORCED_WIDGET_STATE_DEBOUNCE_MS
             } else {
-                WIDGET_STATE_DEBOUNCE_MS
+                widgetStateDebounceMs
             }
             if (debounceMs > 0L) {
                 delay(debounceMs)
@@ -1946,7 +2040,7 @@ class MusicService : MediaLibraryService() {
         val remoteQueueItems = remoteStatus?.queueItems.orEmpty()
         if (remoteQueueItems.isNotEmpty()) {
             val remoteCurrentIndex = remoteQueueItems.indexOfFirst {
-                it.itemId == remoteStatus?.getCurrentItemId()
+                it.itemId == remoteStatus?.currentItemId
             }.takeIf { it >= 0 } ?: 0
             val remoteTokens = remoteQueueItems.map { item ->
                 item.customData
@@ -1955,7 +2049,7 @@ class MusicService : MediaLibraryService() {
                     ?: item.media?.contentId
                     ?: item.itemId.toString()
             }
-            return encodeWearQueueRevision(remoteTokens, remoteCurrentIndex)
+            return encodeWearQueueRevision(remoteTokens, remoteStatus?.currentItemId ?: 0)
         }
 
         if (timeline.isEmpty) {
@@ -2321,7 +2415,7 @@ class MusicService : MediaLibraryService() {
             ?: if (rawArtworkUri.startsWith("/")) {
                 Uri.fromFile(java.io.File(rawArtworkUri))
             } else {
-                runCatching { Uri.parse(rawArtworkUri) }.getOrNull()
+                runCatching { rawArtworkUri.toUri() }.getOrNull()
             }
     }
 
@@ -2523,10 +2617,6 @@ class MusicService : MediaLibraryService() {
         return songId != null && favoriteSongIds.contains(songId)
     }
 
-    fun isManualShuffleEnabled(): Boolean {
-        return isManualShuffleEnabled
-    }
-
     override fun onUpdateNotification(session: MediaSession, startInForegroundRequired: Boolean) {
         val playWhenReady = session.player.playWhenReady
         val playbackState = session.player.playbackState
@@ -2633,7 +2723,7 @@ class MusicService : MediaLibraryService() {
         endOfTrackTimerSongId = null
 
         if (preservePlaybackSnapshot) {
-            persistPlaybackSnapshotBlocking(playWhenReadyOverride = false)
+            persistPlaybackSnapshotBlocking()
         } else {
             clearPlaybackSnapshotBlocking()
         }
@@ -2648,8 +2738,8 @@ class MusicService : MediaLibraryService() {
         stopSelf()
     }
 
-    private fun persistPlaybackSnapshotBlocking(playWhenReadyOverride: Boolean? = null) {
-        val snapshot = capturePlaybackSnapshotFromPlayer(playWhenReadyOverride)
+    private fun persistPlaybackSnapshotBlocking() {
+        val snapshot = capturePlaybackSnapshotFromPlayer(playWhenReadyOverride = false)
         writePlaybackSnapshotBlocking(snapshot)
     }
 

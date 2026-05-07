@@ -230,7 +230,7 @@ interface MusicRepository {
 
     suspend fun invalidateCachesDependentOnAllowedDirectories() // Nuevo para precarga de temas
 
-    fun searchSongs(query: String): Flow<List<Song>>
+    fun searchSongs(query: String, titleOnly: Boolean = false): Flow<List<Song>>
     fun searchAlbums(query: String, minTracks: Int = 1): Flow<List<Album>>
     fun searchArtists(query: String): Flow<List<Artist>>
     suspend fun searchPlaylists(query: String): List<Playlist> // Mantener suspend, ya que no hay Flow aún
