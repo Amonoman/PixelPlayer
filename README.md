@@ -108,7 +108,7 @@
 ## 📱 Requirements
 
 - **Android 11** (API 30) or higher
-- **4GB RAM** recommended for smooth performance
+- **6GB RAM** recommended for smooth performance
 
 ---
 
