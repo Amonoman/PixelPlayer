@@ -1022,13 +1022,19 @@ class MusicService : MediaLibraryService() {
         return getNavidromeId(mediaItem) != null
     }
 
-    private fun reportNavidromePlayback(state: String) {
+    private fun reportNavidromePlayback(state: String, mediaItem: MediaItem? = engine.masterPlayer.currentMediaItem) {
         val player = engine.masterPlayer
         // Ensure we capture player state on main thread to avoid IllegalStateException
-        val mediaItem = player.currentMediaItem ?: return
-        val navidromeId = getNavidromeId(mediaItem) ?: return
+        val targetItem = mediaItem ?: return
+        val navidromeId = getNavidromeId(targetItem) ?: return
 
-        val positionMs = player.currentPosition
+        // If reporting for current item, use player position.
+        // If reporting "stopped" for a transition, use the item's duration as final position.
+        val positionMs = if (targetItem === player.currentMediaItem) {
+            player.currentPosition
+        } else {
+            targetItem.mediaMetadata.extras?.getLong(MediaItemBuilder.EXTERNAL_EXTRA_DURATION) ?: 0L
+        }
         val playbackRate = player.playbackParameters.speed
 
         // Use appScope for the network call so it survives if serviceScope is cancelled
@@ -1160,6 +1166,20 @@ class MusicService : MediaLibraryService() {
                 val state = if (engine.masterPlayer.isPlaying) "playing" else "paused"
                 reportNavidromePlayback(state)
             }
+
+            if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION) {
+                val finishedItem = oldPosition.mediaItem
+                if (isNavidromeMediaItem(finishedItem)) {
+                    val prevId = getNavidromeId(finishedItem)
+                    reportNavidromePlayback("stopped", finishedItem)
+                    if (prevId != null) {
+                        appScope.launch(Dispatchers.IO) {
+                            navidromeRepository.scrobble(prevId, submission = true)
+                        }
+                    }
+                }
+            }
+
             if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION ||
                 reason == Player.DISCONTINUITY_REASON_SEEK
             ) {
