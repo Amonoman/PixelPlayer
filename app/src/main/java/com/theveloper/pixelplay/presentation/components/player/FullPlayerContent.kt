@@ -191,6 +191,7 @@ fun FullPlayerContent(
     currentSong: Song?,
     currentPlaybackQueue: ImmutableList<Song>,
     currentQueueSourceName: String,
+    currentMediaItemIndex: Int = -1,
     isShuffleEnabled: Boolean,
     shuffleTransitionInProgress: Boolean,
     repeatMode: Int,
@@ -406,12 +407,13 @@ fun FullPlayerContent(
         }
     }
 
-    var pendingCarouselSongId by remember { mutableStateOf<String?>(null) }
-    val pendingCarouselIndex = remember(pendingCarouselSongId, currentPlaybackQueue) {
-        pendingCarouselSongId?.let { targetSongId ->
-            currentPlaybackQueue.indexOfFirst { it.id == targetSongId }
-                .takeIf { it >= 0 }
-        }
+    var pendingCarouselIndex by remember { mutableStateOf<Int?>(null) }
+    val currentQueueIndex = remember(song.id, currentMediaItemIndex, currentPlaybackQueue) {
+        resolveQueueIndex(
+            queue = currentPlaybackQueue,
+            songId = song.id,
+            currentMediaItemIndex = currentMediaItemIndex
+        )
     }
     val skipRequests = remember {
         MutableSharedFlow<SkipDirection>(
@@ -421,51 +423,51 @@ fun FullPlayerContent(
     }
     val latestQueue by rememberUpdatedState(currentPlaybackQueue)
     val latestSongId by rememberUpdatedState(song.id)
+    val latestCurrentQueueIndex by rememberUpdatedState(currentQueueIndex)
     val latestRepeatMode by rememberUpdatedState(repeatMode)
     val latestIsRemotePlaybackActive by rememberUpdatedState(isRemotePlaybackActive)
     val latestCurrentPositionProvider by rememberUpdatedState(currentPositionProvider)
     val latestOnNext by rememberUpdatedState(onNext)
     val latestOnPrevious by rememberUpdatedState(onPrevious)
 
-    LaunchedEffect(song.id, pendingCarouselSongId) {
-        if (pendingCarouselSongId == song.id) {
-            pendingCarouselSongId = null
+    LaunchedEffect(currentQueueIndex, pendingCarouselIndex) {
+        if (pendingCarouselIndex == currentQueueIndex) {
+            pendingCarouselIndex = null
         }
     }
 
-    LaunchedEffect(pendingCarouselSongId, song.id) {
-        val targetSongId = pendingCarouselSongId ?: return@LaunchedEffect
+    LaunchedEffect(pendingCarouselIndex, currentQueueIndex) {
+        val targetIndex = pendingCarouselIndex ?: return@LaunchedEffect
         kotlinx.coroutines.delay(900)
-        if (pendingCarouselSongId == targetSongId && song.id != targetSongId) {
-            pendingCarouselSongId = null
+        if (pendingCarouselIndex == targetIndex && currentQueueIndex != targetIndex) {
+            pendingCarouselIndex = null
         }
     }
 
     LaunchedEffect(skipRequests) {
         skipRequests.collect { direction ->
             val queueSnapshot = latestQueue
-            val baseSongId = pendingCarouselSongId ?: latestSongId
+            val baseIndex = pendingCarouselIndex
+                ?: latestCurrentQueueIndex
+                ?: queueSnapshot.indexOfFirst { it.id == latestSongId }.takeIf { it >= 0 }
             val predictedTargetIndex = when (direction) {
                 SkipDirection.NEXT -> predictSkipNextCarouselIndex(
-                    currentSongId = baseSongId,
+                    currentIndex = baseIndex,
                     queue = queueSnapshot,
                     repeatMode = latestRepeatMode,
                     isRemotePlaybackActive = latestIsRemotePlaybackActive
                 )
                 SkipDirection.PREVIOUS -> predictSkipPreviousCarouselIndex(
-                    currentSongId = baseSongId,
+                    currentIndex = baseIndex,
                     queue = queueSnapshot,
                     currentPositionMs = latestCurrentPositionProvider(),
                     repeatMode = latestRepeatMode,
                     isRemotePlaybackActive = latestIsRemotePlaybackActive
                 )
             }
-            val predictedTargetSongId = predictedTargetIndex
-                ?.let(queueSnapshot::getOrNull)
-                ?.id
 
-            if (predictedTargetSongId != null) {
-                pendingCarouselSongId = predictedTargetSongId
+            if (predictedTargetIndex != null) {
+                pendingCarouselIndex = predictedTargetIndex
 
                 // Start the pager motion before MediaController listeners fan out
                 // the full track transition state updates through the player UI.
@@ -478,7 +480,7 @@ fun FullPlayerContent(
             }
 
             kotlinx.coroutines.delay(
-                if (predictedTargetSongId != null) SPAM_SKIP_SERIALIZATION_MS
+                if (predictedTargetIndex != null) SPAM_SKIP_SERIALIZATION_MS
                 else NO_TARGET_SKIP_SERIALIZATION_MS
             )
         }
@@ -498,6 +500,7 @@ fun FullPlayerContent(
         FullPlayerAlbumCoverSection(
             song = song,
             currentPlaybackQueue = currentPlaybackQueue,
+            currentMediaItemIndex = currentQueueIndex ?: currentMediaItemIndex,
             carouselStyle = carouselStyle,
             loadingTweaks = loadingTweaks,
             isSheetDragGestureActive = isSheetDragGestureActive,
@@ -994,6 +997,7 @@ fun FullPlayerContent(
 private fun FullPlayerAlbumCoverSection(
     song: Song,
     currentPlaybackQueue: ImmutableList<Song>,
+    currentMediaItemIndex: Int,
     carouselStyle: String,
     loadingTweaks: FullPlayerLoadingTweaks,
     isSheetDragGestureActive: Boolean,
@@ -1072,6 +1076,7 @@ private fun FullPlayerAlbumCoverSection(
                 currentSong = song,
                 queue = currentPlaybackQueue,
                 expansionFraction = 1f,
+                currentMediaItemIndex = currentMediaItemIndex,
                 requestedScrollIndex = requestedScrollIndex,
                 onSongSelected = { newSong ->
                     if (newSong.id != song.id) {
@@ -1242,26 +1247,35 @@ private fun FullPlayerProgressSection(
     )
 }
 
+private fun resolveQueueIndex(
+    queue: ImmutableList<Song>,
+    songId: String,
+    currentMediaItemIndex: Int
+): Int? {
+    if (currentMediaItemIndex in queue.indices && queue[currentMediaItemIndex].id == songId) {
+        return currentMediaItemIndex
+    }
+    return queue.indexOfFirst { it.id == songId }.takeIf { it >= 0 }
+}
+
 private fun predictSkipNextCarouselIndex(
-    currentSongId: String,
+    currentIndex: Int?,
     queue: ImmutableList<Song>,
     repeatMode: Int,
     isRemotePlaybackActive: Boolean
 ): Int? {
     if (isRemotePlaybackActive || queue.size <= 1) return null
-
-    val currentIndex = queue.indexOfFirst { it.id == currentSongId }
-    if (currentIndex == -1) return null
+    val safeCurrentIndex = currentIndex?.takeIf { it in queue.indices } ?: return null
 
     return when {
-        currentIndex < queue.lastIndex -> currentIndex + 1
+        safeCurrentIndex < queue.lastIndex -> safeCurrentIndex + 1
         repeatMode == Player.REPEAT_MODE_ALL -> 0
         else -> null
     }
 }
 
 private fun predictSkipPreviousCarouselIndex(
-    currentSongId: String,
+    currentIndex: Int?,
     queue: ImmutableList<Song>,
     currentPositionMs: Long,
     repeatMode: Int,
@@ -1269,12 +1283,10 @@ private fun predictSkipPreviousCarouselIndex(
 ): Int? {
     if (isRemotePlaybackActive || queue.size <= 1) return null
     if (currentPositionMs > PREVIOUS_TRACK_RESTART_THRESHOLD_MS) return null
-
-    val currentIndex = queue.indexOfFirst { it.id == currentSongId }
-    if (currentIndex == -1) return null
+    val safeCurrentIndex = currentIndex?.takeIf { it in queue.indices } ?: return null
 
     return when {
-        currentIndex > 0 -> currentIndex - 1
+        safeCurrentIndex > 0 -> safeCurrentIndex - 1
         repeatMode == Player.REPEAT_MODE_ALL -> queue.lastIndex
         else -> null
     }
