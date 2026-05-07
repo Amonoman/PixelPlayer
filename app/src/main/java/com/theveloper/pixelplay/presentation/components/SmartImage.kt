@@ -64,6 +64,9 @@ fun SmartImage(
 ) {
     val context = LocalContext.current
     val clippedModifier = modifier.clip(shape)
+    val requestTargetSize = remember(targetSize) {
+        safeAlbumArtTargetSize(targetSize)
+    }
 
     // Handle direct models (Bitmap, Vector, etc) early to avoid ImageRequest overhead
     if (model == null || model is ImageVector || model is Painter || model is ImageBitmap || model is Bitmap) {
@@ -96,10 +99,12 @@ fun SmartImage(
         useDiskCache,
         useMemoryCache,
         allowHardware,
-        targetSize
+        requestTargetSize
     ) {
         if (model is ImageRequest) {
-            model
+            model.newBuilder(context)
+                .size(requestTargetSize)
+                .build()
         } else {
             ImageRequest.Builder(context)
                 .data(model)
@@ -107,7 +112,7 @@ fun SmartImage(
                 .diskCachePolicy(if (useDiskCache) CachePolicy.ENABLED else CachePolicy.DISABLED)
                 .memoryCachePolicy(if (useMemoryCache) CachePolicy.ENABLED else CachePolicy.DISABLED)
                 .allowHardware(allowHardware)
-                .size(targetSize)
+                .size(requestTargetSize)
                 .build()
         }
     }

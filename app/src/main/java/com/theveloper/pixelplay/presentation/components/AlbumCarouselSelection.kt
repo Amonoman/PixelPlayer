@@ -66,7 +66,7 @@ fun AlbumCarouselSection(
 
     // Calculate target size based on quality
     val targetSize = remember(albumArtQuality) {
-        if (albumArtQuality.maxSize == 0) Size.ORIGINAL
+        if (albumArtQuality.maxSize == 0) SafeOriginalAlbumArtSize
         else Size(albumArtQuality.maxSize, albumArtQuality.maxSize)
     }
 
