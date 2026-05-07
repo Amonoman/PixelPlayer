@@ -258,29 +258,18 @@ class MusicService : MediaLibraryService() {
 
     private val playerSwapListener: (Player) -> Unit = { newPlayer ->
         serviceScope.launch(Dispatchers.Main) {
-            val oldPlayer = mediaSession?.player
-            oldPlayer?.removeListener(playerListener)
+            publishMediaSessionPlayer(newPlayer, "Swapped MediaSession player to new instance.")
+            prepareReplayGainForTransitionPlayer(newPlayer)
+        }
+    }
 
-            mediaSession?.player = newPlayer
-            newPlayer.addListener(playerListener)
-
-            Timber.tag("MusicService").d("Swapped MediaSession player to new instance.")
-            requestWidgetFullUpdate(force = true)
-            mediaSession?.let { refreshMediaSessionUi(it) }
-
-            // Pre-compute ReplayGain for the incoming track while the crossfade is still running.
-            // isTransitionRunning() is true here, so applyReplayGain stores the result as
-            // pendingReplayGainVolume. onTransitionFinished() applies it cleanly once the fade
-            // loop ends, avoiding any volume jump on the incoming track.
-            //
-            // Also try to set incomingTrackReplayGainVolume immediately from cache so the
-            // fade loop can use the correct final volume even before the IO coroutine finishes.
-            val incomingItem = newPlayer.currentMediaItem
-            val cachedVolume = getCachedReplayGainVolume(incomingItem)
-            if (cachedVolume != null) {
-                engine.incomingTrackReplayGainVolume = cachedVolume
-            }
-            applyReplayGain(incomingItem)
+    private val transitionDisplayPlayerListener: (Player) -> Unit = { displayPlayer ->
+        serviceScope.launch(Dispatchers.Main) {
+            publishMediaSessionPlayer(
+                displayPlayer,
+                "Published incoming crossfade player to MediaSession."
+            )
+            prepareReplayGainForTransitionPlayer(displayPlayer)
         }
     }
 
@@ -290,6 +279,36 @@ class MusicService : MediaLibraryService() {
         serviceScope.launch(Dispatchers.Main) {
             onTransitionFinished()
         }
+    }
+
+    private fun publishMediaSessionPlayer(player: Player, logMessage: String) {
+        val session = mediaSession ?: return
+        val oldPlayer = session.player
+        if (oldPlayer !== player) {
+            oldPlayer.removeListener(playerListener)
+            session.player = player
+            player.addListener(playerListener)
+        }
+
+        Timber.tag("MusicService").d(logMessage)
+        requestWidgetFullUpdate(force = true)
+        refreshMediaSessionUi(session)
+    }
+
+    private fun prepareReplayGainForTransitionPlayer(player: Player) {
+        // Pre-compute ReplayGain for the incoming track while the crossfade is still running.
+        // isTransitionRunning() is true here, so applyReplayGain stores the result as
+        // pendingReplayGainVolume. onTransitionFinished() applies it cleanly once the fade
+        // loop ends, avoiding any volume jump on the incoming track.
+        //
+        // Also try to set incomingTrackReplayGainVolume immediately from cache so the
+        // fade loop can use the correct final volume even before the IO coroutine finishes.
+        val incomingItem = player.currentMediaItem
+        val cachedVolume = getCachedReplayGainVolume(incomingItem)
+        if (cachedVolume != null) {
+            engine.incomingTrackReplayGainVolume = cachedVolume
+        }
+        applyReplayGain(incomingItem)
     }
 
     override fun onCreate() {
@@ -331,6 +350,7 @@ class MusicService : MediaLibraryService() {
 
         // Handle player swaps (crossfade) to keep MediaSession in sync
         engine.addPlayerSwapListener(playerSwapListener)
+        engine.addTransitionDisplayPlayerListener(transitionDisplayPlayerListener)
         engine.addTransitionFinishedListener(transitionFinishedListener)
 
         controller.initialize()
@@ -1349,10 +1369,7 @@ class MusicService : MediaLibraryService() {
                 // volume instead of hard-coding 1f, preventing the audible jump.
                 pendingReplayGainVolume = volume
                 engine.incomingTrackReplayGainVolume = volume
-                // Apply immediately to masterPlayer so volume is never lost if the
-                // transition is interrupted (e.g. user skips during crossfade).
-                setPlayerVolume(engine.masterPlayer, volume)
-                Timber.tag(TAG).d("ReplayGain: Applied + stored pending volume=%.2f for %s (transition running)",
+                Timber.tag(TAG).d("ReplayGain: Stored pending volume=%.2f for %s (transition running)",
                     volume, mediaItem.mediaMetadata.title
                 )
             } else {
@@ -1414,15 +1431,13 @@ class MusicService : MediaLibraryService() {
         }
 
         if (pending != null) {
-            // pending was already applied to masterPlayer during the transition to ensure
-            // volume is never lost if the transition was interrupted (e.g. user skipped).
-            // Re-applying here is a no-op in volume terms but confirms the final state.
+            // The crossfade loop ramps to this value; apply it now as the stable post-fade volume.
             // Also update lastAppliedReplayGainVolume so any subsequent onPositionDiscontinuity
             // (REASON_AUTO_TRANSITION fires right after crossfade ends) uses this value
             // immediately instead of launching a new IO coroutine and causing a spike.
             lastAppliedReplayGainVolume = pending
             setPlayerVolume(player, pending)
-            Timber.tag(TAG).d("ReplayGain: Transition finished, confirmed pending volume=%.2f", pending)
+            Timber.tag(TAG).d("ReplayGain: Transition finished, applied pending volume=%.2f", pending)
         } else {
             // No pending volume was computed during transition, trigger full computation
             applyReplayGain(mediaSession?.player?.currentMediaItem)
@@ -1568,7 +1583,9 @@ class MusicService : MediaLibraryService() {
         replayGainJob?.cancel()
 
         engine.removePlayerSwapListener(playerSwapListener)
+        engine.removeTransitionDisplayPlayerListener(transitionDisplayPlayerListener)
         engine.removeTransitionFinishedListener(transitionFinishedListener)
+        mediaSession?.player?.removeListener(playerListener)
         engine.masterPlayer.removeListener(playerListener)
 
         mediaSession?.run {
