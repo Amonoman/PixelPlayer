@@ -81,6 +81,7 @@
     <string name="pause_playback">暂停播放</string>
     <string name="play_playback">播放</string>
     <string name="playlist_not_found">未找到播放列表。</string>
+    <string name="disc_number_header">碟片 %d</string>
 
     <string name="ai_error_api_key">请在“设置”中为所选 AI 提供商配置有效的 API 密钥。</string>
     <string name="ai_error_generic">AI 错误：%s</string>
