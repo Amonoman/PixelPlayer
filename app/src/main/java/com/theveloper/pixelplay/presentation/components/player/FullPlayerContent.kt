@@ -74,7 +74,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -141,14 +140,12 @@ import java.util.Locale
 import kotlin.math.roundToLong
 import com.theveloper.pixelplay.presentation.components.WavySliderExpressive
 import com.theveloper.pixelplay.presentation.components.ToggleSegmentButton
-import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.withContext
 
 private const val PREVIOUS_TRACK_RESTART_THRESHOLD_MS = 10_000L
-private const val SPAM_SKIP_SERIALIZATION_MS = 360L
-private const val NO_TARGET_SKIP_SERIALIZATION_MS = 140L
+private const val SKIP_COMMAND_GUARD_MS = 96L
 
 private enum class SkipDirection { PREVIOUS, NEXT }
 
@@ -417,8 +414,7 @@ fun FullPlayerContent(
     }
     val skipRequests = remember {
         MutableSharedFlow<SkipDirection>(
-            extraBufferCapacity = 16,
-            onBufferOverflow = BufferOverflow.DROP_OLDEST
+            extraBufferCapacity = 16
         )
     }
     val latestQueue by rememberUpdatedState(currentPlaybackQueue)
@@ -446,53 +442,52 @@ fun FullPlayerContent(
 
     LaunchedEffect(skipRequests) {
         skipRequests.collect { direction ->
-            val queueSnapshot = latestQueue
-            val baseIndex = pendingCarouselIndex
-                ?: latestCurrentQueueIndex
-                ?: queueSnapshot.indexOfFirst { it.id == latestSongId }.takeIf { it >= 0 }
-            val predictedTargetIndex = when (direction) {
-                SkipDirection.NEXT -> predictSkipNextCarouselIndex(
-                    currentIndex = baseIndex,
-                    queue = queueSnapshot,
-                    repeatMode = latestRepeatMode,
-                    isRemotePlaybackActive = latestIsRemotePlaybackActive
-                )
-                SkipDirection.PREVIOUS -> predictSkipPreviousCarouselIndex(
-                    currentIndex = baseIndex,
-                    queue = queueSnapshot,
-                    currentPositionMs = latestCurrentPositionProvider(),
-                    repeatMode = latestRepeatMode,
-                    isRemotePlaybackActive = latestIsRemotePlaybackActive
-                )
-            }
-
-            if (predictedTargetIndex != null) {
-                pendingCarouselIndex = predictedTargetIndex
-
-                // Start the pager motion before MediaController listeners fan out
-                // the full track transition state updates through the player UI.
-                withFrameNanos { }
-            }
-
             when (direction) {
                 SkipDirection.NEXT -> latestOnNext()
                 SkipDirection.PREVIOUS -> latestOnPrevious()
             }
 
-            kotlinx.coroutines.delay(
-                if (predictedTargetIndex != null) SPAM_SKIP_SERIALIZATION_MS
-                else NO_TARGET_SKIP_SERIALIZATION_MS
+            kotlinx.coroutines.delay(SKIP_COMMAND_GUARD_MS)
+        }
+    }
+
+    fun predictSkipCarouselIndex(direction: SkipDirection): Int? {
+        val queueSnapshot = latestQueue
+        val baseIndex = pendingCarouselIndex
+            ?: latestCurrentQueueIndex
+            ?: queueSnapshot.indexOfFirst { it.id == latestSongId }.takeIf { it >= 0 }
+
+        return when (direction) {
+            SkipDirection.NEXT -> predictSkipNextCarouselIndex(
+                currentIndex = baseIndex,
+                queue = queueSnapshot,
+                repeatMode = latestRepeatMode,
+                isRemotePlaybackActive = latestIsRemotePlaybackActive
+            )
+            SkipDirection.PREVIOUS -> predictSkipPreviousCarouselIndex(
+                currentIndex = baseIndex,
+                queue = queueSnapshot,
+                currentPositionMs = latestCurrentPositionProvider(),
+                repeatMode = latestRepeatMode,
+                isRemotePlaybackActive = latestIsRemotePlaybackActive
             )
         }
     }
 
+    fun requestSkip(direction: SkipDirection) {
+        val predictedTargetIndex = predictSkipCarouselIndex(direction)
+        if (skipRequests.tryEmit(direction) && predictedTargetIndex != null) {
+            pendingCarouselIndex = predictedTargetIndex
+        }
+    }
+
     val onNextWithOptimisticCarousel = {
-        skipRequests.tryEmit(SkipDirection.NEXT)
+        requestSkip(SkipDirection.NEXT)
         Unit
     }
 
     val onPreviousWithOptimisticCarousel = {
-        skipRequests.tryEmit(SkipDirection.PREVIOUS)
+        requestSkip(SkipDirection.PREVIOUS)
         Unit
     }
 
