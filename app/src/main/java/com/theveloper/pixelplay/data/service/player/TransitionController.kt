@@ -69,11 +69,9 @@ class TransitionController @Inject constructor(
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 Timber.tag("TransitionDebug").d("onMediaItemTransition: %s (reason=%d)", mediaItem?.mediaId, reason)
                 // When we naturally move to a new song, ensure pauseAtEnd is OFF by default.
-                engine.setPauseAtEndOfMediaItems(false)
+                engine.setPauseAtEndOfMediaItems(shouldPause = false)
 
-                if (mediaItem != null) {
-                    scheduleTransitionFor(mediaItem)
-                }
+                mediaItem?.let { scheduleTransitionFor(it) }
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -115,7 +113,7 @@ class TransitionController @Inject constructor(
         // Cancel any existing job first and reset pauseAtEnd so a stale `true`
         // from the previous job doesn't cause an unexpected pause.
         transitionSchedulerJob?.cancel()
-        engine.setPauseAtEndOfMediaItems(false)
+        engine.setPauseAtEndOfMediaItems(shouldPause = false)
 
         transitionSchedulerJob = scope.launch {
             // If a transition is currently running, cancel it immediately.
@@ -138,7 +136,9 @@ class TransitionController @Inject constructor(
             if (nextMediaItem == null) {
                 Timber.tag("TransitionDebug").d(
                     "No next track (index=%d, count=%d, repeatMode=%d). No transition.",
-                    nextIndex, player.mediaItemCount, repeatMode
+                    nextIndex,
+                    player.mediaItemCount,
+                    repeatMode,
                 )
                 engine.cancelNext()
                 return@launch
@@ -166,7 +166,7 @@ class TransitionController @Inject constructor(
                 }
             }
 
-            kotlinx.coroutines.flow.combine(settingsFlow, isCrossfadeEnabledFlow) { resolution, isEnabled ->
+            combine(settingsFlow, isCrossfadeEnabledFlow) { resolution, isEnabled ->
                 Pair(resolution, isEnabled)
             }.distinctUntilChanged() // Crucial: prevents restarting the job if the same settings are emitted again
             .collectLatest { (resolution, isEnabled) ->
@@ -183,7 +183,7 @@ class TransitionController @Inject constructor(
                 if (isGloballyDisabled) {
                     Timber.tag("TransitionDebug").d("Crossfade globally disabled. Using default gap.")
                     engine.cancelNext()
-                    engine.setPauseAtEndOfMediaItems(false)
+                    engine.setPauseAtEndOfMediaItems(shouldPause = false)
                     return@collectLatest
                 }
 
@@ -191,7 +191,7 @@ class TransitionController @Inject constructor(
                 if (settings.mode == TransitionMode.NONE || settings.durationMs <= 0) {
                     Timber.tag("TransitionDebug").d("Transition disabled or zero duration.")
                     engine.cancelNext()
-                    engine.setPauseAtEndOfMediaItems(false)
+                    engine.setPauseAtEndOfMediaItems(shouldPause = false)
                     return@collectLatest
                 }
 
@@ -232,7 +232,7 @@ class TransitionController @Inject constructor(
 
                 // --- CRITICAL FIX: Enable Pause At End ---
                 // We want to control the transition manually, so we prevent auto-advance.
-                engine.setPauseAtEndOfMediaItems(true)
+                engine.setPauseAtEndOfMediaItems(shouldPause = true)
                 Timber.tag("TransitionDebug").d("Enabled pauseAtEndOfMediaItems to prevent auto-skip.")
 
                 if (transitionPoint <= player.currentPosition) {
@@ -244,7 +244,7 @@ class TransitionController @Inject constructor(
                     } else {
                         Timber.tag("TransitionDebug").w("Too close to end (%d ms left). Skipping to avoid glitch.", remaining)
                         engine.cancelNext()
-                        engine.setPauseAtEndOfMediaItems(false)
+                        engine.setPauseAtEndOfMediaItems(shouldPause = false)
                     }
                     return@collectLatest
                 }
@@ -270,7 +270,7 @@ class TransitionController @Inject constructor(
                     engine.performTransition(settings.copy(durationMs = effectiveDuration.toInt()))
                 } else {
                     Timber.tag("TransitionDebug").d("Job cancelled before firing.")
-                    engine.setPauseAtEndOfMediaItems(false)
+                    engine.setPauseAtEndOfMediaItems(shouldPause = false)
                 }
             }
         }
