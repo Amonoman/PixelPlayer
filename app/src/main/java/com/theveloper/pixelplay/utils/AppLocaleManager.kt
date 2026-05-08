@@ -17,7 +17,7 @@ object AppLocaleManager {
         AppLanguage.normalize(
             context
                 .getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
-                .getString(KEY_LANGUAGE_TAG, AppLanguage.SYSTEM.tag) // .tag hinzugefügt
+                .getString(KEY_LANGUAGE_TAG, AppLanguage.SYSTEM.tag)
                 .orEmpty()
         )
 
