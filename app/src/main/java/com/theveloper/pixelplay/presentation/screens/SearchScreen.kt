@@ -59,7 +59,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -96,6 +95,7 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -142,6 +142,7 @@ fun SearchScreen(
     onSearchBarActiveChange: (Boolean) -> Unit = {}
 ) {
     var searchQuery by rememberSaveable { mutableStateOf(playerViewModel.searchQuery) }
+    val statusBarTopInset = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
     val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val navBarCompactMode by playerViewModel.navBarCompactMode.collectAsStateWithLifecycle()
     val bottomBarHeightDp = resolveNavBarOccupiedHeight(systemNavBarInset, navBarCompactMode)
@@ -229,22 +230,28 @@ fun SearchScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(280.dp)
-                .background(
-                    gradientBrush
-                )
-        )
+//        Box(
+//            modifier = Modifier
+//                .fillMaxWidth()
+//                .height(280.dp)
+//                .background(
+//                    gradientBrush
+//                )
+//        )
 
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
-            Box(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
+                    .padding(
+                        start = 24.dp,
+                        top = statusBarTopInset,
+                        end = 24.dp
+                    ),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 val searchBarInputFieldColors = SearchBarDefaults.inputFieldColors(
                     focusedTextColor = MaterialTheme.colorScheme.onSurface,
@@ -314,15 +321,35 @@ fun SearchScreen(
                     expanded = false,
                     onExpandedChange = {},
                     modifier = Modifier
-                        .fillMaxWidth()
+                        .align(Alignment.CenterVertically)
+                        .weight(1f)
                         .clip(RoundedCornerShape(searchbarCornerRadius)),
                     colors = SearchBarDefaults.colors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
                         dividerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
                         inputFieldColors = searchBarInputFieldColors
                     ),
+                    windowInsets = WindowInsets(0.dp),
                     content = {}
                 )
+
+                FilledIconButton(
+                    modifier = Modifier
+                        .align(Alignment.CenterVertically)
+                        .size(48.dp)
+                        .padding(top = 4.dp)
+                    ,
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    ),
+                    onClick = { navController.navigateSafely(Screen.Settings.route) }
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.rounded_settings_24),
+                        contentDescription = stringResource(R.string.presentation_batch_d_open_settings_cd)
+                    )
+                }
             }
 
             val showGenreBrowse by remember(searchQuery) { derivedStateOf { searchQuery.isBlank() } }

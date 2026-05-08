@@ -708,7 +708,7 @@ class NavidromeRepository @Inject constructor(
                     dateAdded = navidromeSong.dateAdded.takeIf { it > 0 }
                         ?: System.currentTimeMillis(),
                     mimeType = navidromeSong.mimeType,
-                    bitrate = navidromeSong.bitRate,
+                    bitrate = navidromeSong.bitRate?.let { it * 1000 },
                     sampleRate = null,
                     telegramChatId = null,
                     telegramFileId = null,
@@ -877,7 +877,7 @@ fun NavidromeSong.toSong(): Song {
         duration = duration,
         genre = genre,
         mimeType = resolvedMimeType,
-        bitrate = bitRate,
+        bitrate = bitRate?.let { it * 1000 },
         sampleRate = null,
         year = year,
         trackNumber = trackNumber,

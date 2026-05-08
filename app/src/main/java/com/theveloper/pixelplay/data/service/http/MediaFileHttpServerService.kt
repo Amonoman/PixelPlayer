@@ -67,6 +67,7 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
+import java.net.BindException
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.InetSocketAddress
@@ -163,6 +164,7 @@ class MediaFileHttpServerService : Service() {
         var lastFailureMessage: String? = null
         @Volatile
         private var castAccessPolicy: CastAccessPolicy = CastAccessPolicy.EMPTY
+        private const val SERVER_START_PORT_RETRY_LIMIT = 3
 
         internal fun configureCastSessionAccess(
             allowedSongIds: Collection<String>,
@@ -322,7 +324,7 @@ class MediaFileHttpServerService : Service() {
         }
     }
 
-    private fun startServer() {
+    private fun startServer(retryAttempt: Int = 0) {
         synchronized(serverStartLock) {
             if (server?.application?.isActive == true || startInProgress) {
                 return
@@ -332,6 +334,7 @@ class MediaFileHttpServerService : Service() {
         }
 
         serviceScope.launch {
+            var shouldRetryAfterBindFailure = false
             try {
                 lastFailureReason = null
                 lastFailureMessage = null
@@ -805,17 +808,33 @@ class MediaFileHttpServerService : Service() {
                 }.start(wait = false)
                 isServerRunning = true
             } catch (e: Exception) {
-                Timber.e(e, "Failed to start HTTP cast server")
-                lastFailureReason = FailureReason.START_EXCEPTION
-                lastFailureMessage = "${e.javaClass.simpleName}: ${e.message ?: "Unknown"}"
                 isServerRunning = false
                 serverAddress = null
-                stopSelf()
+                serverHostAddress = null
+                serverPrefixLength = -1
+                if (e.isAddressAlreadyInUse() && retryAttempt < SERVER_START_PORT_RETRY_LIMIT) {
+                    shouldRetryAfterBindFailure = true
+                    Timber.tag(castHttpLogTag).w(
+                        e,
+                        "Cast HTTP server port bind failed; retrying startup (%d/%d).",
+                        retryAttempt + 1,
+                        SERVER_START_PORT_RETRY_LIMIT
+                    )
+                } else {
+                    Timber.e(e, "Failed to start HTTP cast server")
+                    lastFailureReason = FailureReason.START_EXCEPTION
+                    lastFailureMessage = "${e.javaClass.simpleName}: ${e.message ?: "Unknown"}"
+                    stopSelf()
+                }
             } finally {
                 synchronized(serverStartLock) {
                     startInProgress = false
                     isServerStarting = false
                 }
+            }
+
+            if (shouldRetryAfterBindFailure) {
+                startServer(retryAttempt + 1)
             }
         }
     }
@@ -848,6 +867,14 @@ class MediaFileHttpServerService : Service() {
                 true
             }
         }.getOrDefault(false)
+    }
+
+    private fun Throwable.isAddressAlreadyInUse(): Boolean {
+        return generateSequence(this) { it.cause }.any { cause ->
+            cause is BindException ||
+                cause.message?.contains("Address already in use", ignoreCase = true) == true ||
+                cause.message?.contains("EADDRINUSE", ignoreCase = true) == true
+        }
     }
 
     private fun selectIpAddress(context: Context, castDeviceIpHint: String?): AddressSelection? {
