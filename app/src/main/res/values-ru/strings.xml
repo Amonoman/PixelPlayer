@@ -1,9 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">PixelPlayer</string>
     <string name="app_name_change_title">Изменение названия приложения</string>
     <string name="app_name_change_message">Мы изменили название нашего приложения с PixelPlay на PixelPlayer из-за проблем с товарным знаком. Приятного прослушивания!</string>
     <string name="do_not_show_again">Больше не показывать</string>
-    <string name="dismiss">Закрыть</string>
+    <string name="dismiss">Скрыть</string>
     <string name="all_files_access_title">Требуется специальное разрешение</string>
     <string name="all_files_access_description">Для редактирования метаданных песен (файлов .mp3) PixelPlayer требуется специальный доступ ко всем файлам. Это позволяет нам напрямую изменять теги треков. Пожалуйста, предоставьте это разрешение на следующем экране, чтобы включить редактирование метаданных.</string>
     <string name="grant_permission_button">Предоставить разрешение</string>
@@ -29,7 +30,7 @@
     <string name="lyrics_network_error">Ошибка сети. Пожалуйста, проверьте подключение к Интернету.</string>
     <string name="lyrics_server_error">Ошибка сервера (код %d). Пожалуйста, попробуйте позже.</string>
     <string name="found_n_matches_format">Найдено совпадений: %d</string>
-    <string name="searched_for_x_format">Поиск по запросу \"%s\"</string>
+    <string name="searched_for_x_format">Искали \"%s\"</string>
     <string name="searching_lyrics">Поиск текста…</string>
     <string name="lyrics_already_available">Текст уже доступен. Онлайн-загрузка пропущена.</string>
     <string name="lyrics_embedded_already_available">Встроенный текст уже найден. Онлайн-загрузка пропущена.</string>
@@ -68,8 +69,8 @@
     <string name="artist_picker_title">Выберите исполнителя</string>
     <string name="artist_picker_supporting_text">Открыть страницу любого указанного исполнителя этого трека.</string>
     <string name="artist_picker_count_single">1 исполнитель</string>
-    <string name="artist_picker_count_multiple">Исполнителей: %1$d</string>
-    <string name="artist_picker_primary_label">Основной исполнитель</string>
+    <string name="artist_picker_count_multiple">%1$d исполнителей</string>
+    <string name="artist_picker_primary_label">Главный исполнитель</string>
     <string name="artist_picker_shortcut_label">Страница исполнителя</string>
     <string name="external_queue_label">Быстрое воспроизведение</string>
     <string name="external_playback_error">Не удалось открыть аудиофайл.</string>
@@ -95,7 +96,7 @@
     <string name="shortcut_shuffle_short">Перемешать</string>
     <string name="shortcut_shuffle_long">Перемешать все песни</string>
     <string name="shortcut_playlist_short">Плейлист</string>
-    <string name="shortcut_playlist_long">Последний воспроизведенный плейлист</string>
+    <string name="shortcut_playlist_long">Последний прослушанный плейлист</string>
 
     <string name="tile_shuffle_all">Перемешать все</string>
     <string name="tile_last_playlist">Последний плейлист</string>
@@ -112,7 +113,7 @@
     <string name="could_not_find_artist">Не удалось найти исполнителя</string>
     <string name="no_valid_songs">Не найдено подходящих песен для воспроизведения</string>
 
-    <string name="glance_widget_description">Адаптивный виджет, подстраивающийся под размер</string>
+    <string name="glance_widget_description">Адаптивный виджет, подстраивающийся под свой размер</string>
     <string name="widget_bar_4x1_desc">Компактная панель плеера</string>
     <string name="widget_control_4x2_desc">Полное управление с перемешиванием и повтором</string>
     <string name="widget_grid_2x2_desc">Минималистичный квадратный плеер</string>
