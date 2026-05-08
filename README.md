@@ -81,7 +81,7 @@
 
 ### ⚙️ Advanced Features
 - **Tag Editor** - Edit metadata with TagLib (MP3, FLAC, M4A support)
-- **AI Playlists** - Generate playlists with AI (Supports Gemini, Deepseek, OpenIA, etc.)
+- **AI Playlists** - Generate playlists with AI (Supports Gemini, Deepseek, OpenAI, etc.)
 
 ---
 
