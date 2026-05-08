@@ -1,6 +1,7 @@
-package com.theveloper.pixelplay.data.service
+﻿package com.theveloper.pixelplay.data.service
 
 import android.app.AlarmManager
+import android.app.BackgroundServiceStartNotAllowedException
 import android.app.ForegroundServiceStartNotAllowedException
 import android.app.PendingIntent
 import android.content.ComponentName
@@ -2691,6 +2692,15 @@ class MusicService : MediaLibraryService() {
                 Timber.tag(TAG).w(
                     e,
                     "startForegroundService not allowed; ignoring redundant self-start request"
+                )
+                serviceIntent?.component ?: ComponentName(this, javaClass)
+            } catch (e: BackgroundServiceStartNotAllowedException) {
+                // Thrown when startForegroundService() itself is called while the app is in a
+                // background-cached state (distinct from ForegroundServiceStartNotAllowedException).
+                // Safe to swallow: the service is either already running or Media3 will retry.
+                Timber.tag(TAG).w(
+                    e,
+                    "startForegroundService blocked (app in background); ignoring self-start request"
                 )
                 serviceIntent?.component ?: ComponentName(this, javaClass)
             }
