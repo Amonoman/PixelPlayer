@@ -29,6 +29,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LargeExtendedFloatingActionButton
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
@@ -75,6 +76,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.preferences.CollagePattern
+import com.theveloper.pixelplay.data.stats.PlaybackStatsRepository
 import com.theveloper.pixelplay.presentation.components.AlbumArtCollage
 import com.theveloper.pixelplay.presentation.components.BetaInfoBottomSheet
 import com.theveloper.pixelplay.presentation.components.Beta05CleanInstallDisclaimerDialog
@@ -280,16 +282,22 @@ fun HomeScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
-                // Your Mix
-                item(
-                    key = "your_mix_header",
-                    contentType = "your_mix_header"
-                ) {
-                    YourMixHeader(
-                        song = yourMixSong,
-                        isShuffleEnabled = isShuffleEnabled,
-                        onPlayShuffled = {
-                            if (yourMixSongs.isNotEmpty()) {
+                if (yourMixSongs.isEmpty()) {
+                    item(
+                        key = "your_mix_loading_placeholder",
+                        contentType = "your_mix_loading_placeholder"
+                    ) {
+                        YourMixLoadingPlaceholder()
+                    }
+                } else {
+                    item(
+                        key = "your_mix_header",
+                        contentType = "your_mix_header"
+                    ) {
+                        YourMixHeader(
+                            song = yourMixSong,
+                            isShuffleEnabled = isShuffleEnabled,
+                            onPlayShuffled = {
                                 if (usesFallbackHomeMix) {
                                     playerViewModel.shuffleAllSongs(queueName = "Your Mix")
                                 } else {
@@ -300,8 +308,8 @@ fun HomeScreen(
                                     )
                                 }
                             }
-                        }
-                    )
+                        )
+                    }
                 }
 
                 // Collage
@@ -399,14 +407,16 @@ fun HomeScreen(
                     }
                 }
 
-                item(
-                    key = "listening_stats_preview",
-                    contentType = "listening_stats_preview"
-                ) {
-                    StatsOverviewCard(
-                        summary = weeklyStats,
-                        onClick = { navController.navigateSafely(Screen.Stats.route) }
-                    )
+                if (weeklyStats.hasListeningActivity()) {
+                    item(
+                        key = "listening_stats_preview",
+                        contentType = "listening_stats_preview"
+                    ) {
+                        StatsOverviewCard(
+                            summary = weeklyStats,
+                            onClick = { navController.navigateSafely(Screen.Stats.route) }
+                        )
+                    }
                 }
             }
         }
@@ -498,6 +508,23 @@ fun HomeScreen(
                     settingsViewModel.setBeta05CleanInstallDisclaimerDismissed(true)
                 }
             }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun YourMixLoadingPlaceholder() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(256.dp)
+            .padding(16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        LoadingIndicator(
+            modifier = Modifier.size(128.dp),
+            color = MaterialTheme.colorScheme.primary
         )
     }
 }
@@ -698,4 +725,13 @@ private fun rememberYourMixTitleStyle(): TextStyle {
             lineHeight = 62.sp
         )
     }
+}
+
+private fun PlaybackStatsRepository.PlaybackStatsSummary?.hasListeningActivity(): Boolean {
+    val summary = this ?: return false
+    return summary.totalDurationMs > 0L ||
+        summary.totalPlayCount > 0 ||
+        summary.uniqueSongs > 0 ||
+        summary.activeDays > 0 ||
+        summary.totalSessions > 0
 }
