@@ -1,4 +1,4 @@
-﻿package com.theveloper.pixelplay.data.service
+package com.theveloper.pixelplay.data.service
 
 import android.app.AlarmManager
 import android.app.BackgroundServiceStartNotAllowedException
@@ -1599,6 +1599,26 @@ class MusicService : MediaLibraryService() {
         Thread.currentThread().setUncaughtExceptionHandler(previousMainThreadExceptionHandler)
         previousMainThreadExceptionHandler = null
         super.onDestroy()
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        // Release in-process bitmap caches when the system signals memory pressure.
+        // MusicService holds up to ~220 KB in cachedWidgetArtBytes and another copy
+        // inside lastWidgetPlayerInfo.albumArtBitmapData. Under moderate-to-critical
+        // pressure these are safe to drop — the next widget update cycle will reload them.
+        //
+        // Raw int value used instead of deprecated ComponentCallbacks2 constant:
+        //   TRIM_MEMORY_RUNNING_LOW = 10
+        // This single threshold covers all higher-severity levels too
+        // (TRIM_MEMORY_BACKGROUND = 40, TRIM_MEMORY_COMPLETE = 80, etc.).
+        if (level >= 10 /* TRIM_MEMORY_RUNNING_LOW */) {
+            Timber.tag(TAG).d("onTrimMemory(level=%d): releasing widget bitmap caches", level)
+            invalidateCachedWidgetArtwork()
+            // Drop the stale PlayerInfo copy so its embedded ByteArray is GC-eligible.
+            // The next processWidgetUpdateInternal() call will rebuild it from scratch.
+            lastWidgetPlayerInfo = null
+        }
     }
 
     private fun registerHeadsetReconnectMonitor() {
