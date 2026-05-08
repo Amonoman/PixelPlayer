@@ -68,13 +68,15 @@
     <string name="setcat_language_label">Язык приложения</string>
     <string name="setcat_language_desc">Выберите язык интерфейса приложения.</string>
     <string name="setcat_language_system">Системный по умолчанию</string>
-    <string name="setcat_language_english">English</string>
-    <string name="setcat_language_spanish">Español</string>
-    <string name="setcat_language_french">Français</string>
+    <string name="setcat_language_english">Английский</string>
+    <string name="setcat_language_spanish">Испанский</string>
+    <string name="setcat_language_german">Немецкий</string>
+	<string name="setcat_language_french">Французский</string>
     <string name="setcat_language_russian">Русский</string>
-    <string name="setcat_language_chinese">简体中文</string>
-    <string name="setcat_language_indonesian">Bahasa Indonesia</string>
-    <string name="setcat_language_italian">Italiano</string>
+    <string name="setcat_language_chinese">Китайский</string>
+    <string name="setcat_language_indonesian">Индонезийский</string>
+    <string name="setcat_language_italian">Итальянский</string>
+	
     <string name="setcat_app_theme_label">Тема приложения</string>
     <string name="setcat_app_theme_desc">Переключение между светлой, темной или системной темой.</string>
     <string name="setcat_theme_light">Светлая тема</string>
