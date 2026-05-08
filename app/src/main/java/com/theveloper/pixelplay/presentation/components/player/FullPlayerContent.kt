@@ -396,7 +396,7 @@ fun FullPlayerContent(
     }
 
     val onSongMetadataArtistClick = {
-        val resolvedArtistId = currentSongArtists.firstOrNull()?.id ?: song.artistId
+        val resolvedArtistId = currentSongArtists.firstOrNull { it.id != 0L && it.id != -1L }?.id ?: song.artistId
         if (currentSongArtists.size > 1) {
             showArtistPicker = true
         } else {
@@ -2121,7 +2121,7 @@ private fun PlayerSongInfo(
     val coroutineScope = rememberCoroutineScope()
     var isNavigatingToArtist by remember { mutableStateOf(false) }
     val resolvedArtistId by remember(artists, artistId) {
-        derivedStateOf { artists.firstOrNull { it.id > 0L }?.id ?: artistId }
+        derivedStateOf { artists.firstOrNull { it.id != 0L && it.id != -1L }?.id ?: artistId }
     }
     val titleStyle = MaterialTheme.typography.headlineSmall.copy(
         fontWeight = FontWeight.Bold,

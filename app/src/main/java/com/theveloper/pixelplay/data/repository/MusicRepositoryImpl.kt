@@ -476,6 +476,10 @@ class MusicRepositoryImpl @Inject constructor(
         return musicDao.getArtistById(artistId).map { it?.toArtist() }
     }
 
+    override suspend fun getArtistIdByName(name: String): Long? = withContext(Dispatchers.IO) {
+        musicDao.getArtistIdByName(name)
+    }
+
     override fun getArtistsForSong(songId: Long): Flow<List<Artist>> {
         return musicDao.getArtistsForSong(songId)
             .map { entities -> entities.map { it.toArtist() } }

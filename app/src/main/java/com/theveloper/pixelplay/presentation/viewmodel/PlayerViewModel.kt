@@ -2335,7 +2335,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun triggerArtistNavigationFromPlayer(artistId: Long) {
-        if (artistId <= 0) {
+        if (artistId == 0L) {
             Log.d("ArtistDebug", "triggerArtistNavigationFromPlayer ignored invalid artistId=$artistId")
             return
         }
@@ -2348,10 +2348,24 @@ class PlayerViewModel @Inject constructor(
 
         artistNavigationJob?.cancel()
         artistNavigationJob = viewModelScope.launch {
+            var resolvedId = artistId
             val currentSong = playbackStateHolder.stablePlayerState.value.currentSong
+            
+            if (resolvedId == -1L && currentSong != null) {
+                val idFromName = musicRepository.getArtistIdByName(currentSong.artist)
+                if (idFromName != null) {
+                    resolvedId = idFromName
+                }
+            }
+
+            if (resolvedId == 0L || resolvedId == -1L) {
+                Log.d("ArtistDebug", "triggerArtistNavigationFromPlayer: could not resolve artistId for name=${currentSong?.artist}")
+                return@launch
+            }
+
             Log.d(
                 "ArtistDebug",
-                "triggerArtistNavigationFromPlayer: artistId=$artistId, songId=${currentSong?.id}, title=${currentSong?.title}"
+                "triggerArtistNavigationFromPlayer: artistId=$resolvedId, songId=${currentSong?.id}, title=${currentSong?.title}"
             )
             collapsePlayerSheet()
 
