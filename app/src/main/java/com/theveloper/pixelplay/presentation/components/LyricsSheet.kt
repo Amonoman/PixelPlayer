@@ -18,6 +18,8 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.util.lerp
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
@@ -524,8 +526,8 @@ fun LyricsSheet(
             // Effect: slides down 8 % of height and fades to transparent.
             .graphicsLayer {
                 val p = backProgressProvider.value
-                alpha = lerp(1f, 0f, p)
-                translationY = lerp(0f, size.height * 0.08f, p)
+                alpha = androidx.compose.ui.util.lerp(1f, 0f, p)
+                translationY = androidx.compose.ui.util.lerp(0f, size.height * 0.08f, p)
             }
             .clip(RoundedCornerShape(32.dp))
             .pointerInput(Unit) {
