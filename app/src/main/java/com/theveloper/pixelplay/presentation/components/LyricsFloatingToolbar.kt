@@ -24,6 +24,11 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.Switch
 import androidx.compose.ui.draw.scale
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -71,15 +76,28 @@ fun LyricsFloatingToolbar(
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
+        val backInteractionSource = remember { MutableInteractionSource() }
+        val isBackPressed by backInteractionSource.collectIsPressedAsState()
+
+        // Animate scale on press: shrinks on press, springs back on release.
+        val backPressScale by animateFloatAsState(
+            targetValue = if (isBackPressed) 0.82f else 1f,
+            animationSpec = spring(
+                stiffness = Spring.StiffnessMedium,
+                dampingRatio = Spring.DampingRatioMediumBouncy
+            ),
+            label = "backPressScale"
+        )
+
         IconButton(
             modifier = Modifier.graphicsLayer {
-                // Scale down and fade out as the predictive back gesture progresses.
-                val p = backProgressProvider()
-                val scale = lerp(1f, 0.7f, p)
-                scaleX = scale
-                scaleY = scale
-                alpha = lerp(1f, 0f, p)
+                // Combine press scale with predictive back gesture scale.
+                val gestureScale = lerp(1f, 0.7f, backProgressProvider())
+                val combined = backPressScale * gestureScale
+                scaleX = combined
+                scaleY = combined
             },
+            interactionSource = backInteractionSource,
             colors = IconButtonDefaults.iconButtonColors(
                 containerColor = backgroundColor,
                 contentColor = onBackgroundColor
