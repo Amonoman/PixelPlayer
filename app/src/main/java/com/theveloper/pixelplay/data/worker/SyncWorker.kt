@@ -1760,9 +1760,8 @@ constructor(
         // since the last successful Navidrome sync. This prevents slow app startups.
         val lastSync = navidromeRepository.lastFullSyncTime
         val currentTime = System.currentTimeMillis()
-        val threshold = 24 * 60 * 60 * 1000L // 24 hours
 
-        if (currentTime - lastSync < threshold) {
+        if (currentTime - lastSync < NavidromeRepository.SYNC_THRESHOLD_MS) {
             Log.d(TAG, "Skipping Navidrome sync during main library sync - last sync was recent.")
             // Still sync unified library from local cache to be safe
             navidromeRepository.syncUnifiedLibrarySongsFromNavidrome()

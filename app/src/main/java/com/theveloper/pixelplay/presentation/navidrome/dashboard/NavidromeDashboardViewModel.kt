@@ -49,7 +49,7 @@ class NavidromeDashboardViewModel @Inject constructor(
         // Auto sync full library (songs + playlists) if it's been more than 24 hours
         val lastSync = repository.lastFullSyncTime
         val currentTime = System.currentTimeMillis()
-        if (currentTime - lastSync > SYNC_THRESHOLD_MS) {
+        if (currentTime - lastSync > NavidromeRepository.SYNC_THRESHOLD_MS) {
             syncAllPlaylistsAndSongs()
         }
     }
@@ -126,6 +126,5 @@ class NavidromeDashboardViewModel @Inject constructor(
 
     companion object {
         private const val WORK_NAME_SYNC_ALL = "navidrome_sync_all"
-        private const val SYNC_THRESHOLD_MS = 24 * 60 * 60 * 1000L // 24 hours
     }
 }

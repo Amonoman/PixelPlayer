@@ -59,7 +59,8 @@ class NavidromeRepository @Inject constructor(
     private val playlistPreferencesRepository: PlaylistPreferencesRepository,
     @ApplicationContext private val context: Context
 ) {
-    private companion object {
+    companion object {
+        const val SYNC_THRESHOLD_MS = 24 * 60 * 60 * 1000L // 24 hours
         private const val TAG = "NavidromeRepo"
         private const val PREFS_NAME = "navidrome_prefs"
         private const val KEY_SERVER_URL = "server_url"
