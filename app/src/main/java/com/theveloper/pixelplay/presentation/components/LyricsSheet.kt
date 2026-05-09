@@ -4,7 +4,10 @@ import android.widget.Toast
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.model.Lyrics
 import com.theveloper.pixelplay.R
+import androidx.activity.BackEventCompat
 import androidx.activity.compose.BackHandler
+import androidx.compose.ui.util.lerp
+import com.theveloper.pixelplay.presentation.components.scoped.LyricsPredictiveBackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.layout.heightIn
@@ -251,7 +254,30 @@ fun LyricsSheet(
     highlightOffsetDp: Dp = 32.dp,
     autoscrollAnimationSpec: AnimationSpec<Float>? = null // null = auto-detect from preference
 ) {
-    BackHandler { onBackClick() }
+    // ─── Enter / Exit animation state ────────────────────────────────────────
+    // 0f = fully visible, 1f = fully dismissed (driven by predictive-back gesture or enter anim)
+    val backProgress = remember { Animatable(1f) }  // start at 1 → animate to 0 on enter
+    var lyricsSwipeEdge by remember { mutableStateOf<Int?>(null) }
+
+    // Enter animation: slide up + fade in on first composition.
+    LaunchedEffect(Unit) {
+        backProgress.animateTo(
+            targetValue = 0f,
+            animationSpec = spring(
+                stiffness = Spring.StiffnessMediumLow,
+                dampingRatio = Spring.DampingRatioLowBouncy
+            )
+        )
+    }
+
+    // Predictive-back (Android 13+) or plain back on older devices.
+    LyricsPredictiveBackHandler(
+        enabled = true,
+        progress = backProgress,
+        onSwipeEdge = { lyricsSwipeEdge = it },
+        onBack = onBackClick
+    )
+
     val stablePlayerState by stablePlayerStateFlow.collectAsStateWithLifecycle()
     val sheetColors = remember(colorScheme) { lyricsSheetColors(colorScheme) }
     val backgroundColor = sheetColors.controlContainer
@@ -489,7 +515,28 @@ fun LyricsSheet(
     Scaffold(
         modifier = modifier
             .fillMaxSize()
-            .clip(RoundedCornerShape(32.dp))
+            // ─── Enter / Predictive-back exit transformation ──────────────────
+            // backProgress: 0f = fully visible, 1f = fully dismissed.
+            // We interpolate: scale 1→0.85, alpha 1→0, translateY 0→+120px,
+            // and corner radius 32→56dp (handled by clip below).
+            .graphicsLayer {
+                val p = backProgress.value
+                // Scale: shrink to 85 % as the user swipes back.
+                val scale = lerp(1f, 0.85f, p)
+                scaleX = scale
+                scaleY = scale
+                // Fade out.
+                alpha = lerp(1f, 0f, p)
+                // Slide down slightly for a natural "dropping away" feel.
+                translationY = lerp(0f, size.height * 0.06f, p)
+                // Shift left/right depending on which edge the gesture started from.
+                translationX = when (lyricsSwipeEdge) {
+                    androidx.activity.BackEventCompat.EDGE_RIGHT -> lerp(0f, size.width * 0.06f, p)
+                    else -> lerp(0f, -size.width * 0.06f, p)
+                }
+                transformOrigin = TransformOrigin(0.5f, 0.5f)
+            }
+            .clip(RoundedCornerShape(lerp(32f, 56f, backProgress.value).dp))
             .pointerInput(Unit) {
                 detectDragGestures(
                     onDragStart = {
