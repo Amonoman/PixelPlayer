@@ -284,14 +284,19 @@ constructor(
                         // Clear the rescan required flag
                         userPreferencesRepository.clearArtistSettingsRescanRequired()
 
-                        val endTime = System.currentTimeMillis()
-                        Timber.tag(TAG)
-                            .i("Synchronization finished successfully in ${endTime - startTime}ms.")
-                        userPreferencesRepository.setLastSyncTimestamp(System.currentTimeMillis())
                         userPreferencesRepository.markDirectoryRulesVersionApplied(
                             directoryRulesVersion
                         )
                     }
+
+                    // Always update last sync timestamp if we reached this point successfully,
+                    // even if no new songs were found in MediaStore. This prevents the sync
+                    // from being re-triggered on every app launch when the library is already up to date.
+                    userPreferencesRepository.setLastSyncTimestamp(System.currentTimeMillis())
+
+                    val endTime = System.currentTimeMillis()
+                    Timber.tag(TAG)
+                        .i("Synchronization finished successfully in ${endTime - startTime}ms.")
 
                     // Count total songs for the output
                     val totalSongs = musicDao.getSongCount().first()
@@ -1749,6 +1754,21 @@ constructor(
     }
 
     private suspend fun syncNavidromeData() {
+        if (!navidromeRepository.isLoggedIn) return
+
+        // Only auto-sync Navidrome during main library sync if it's been more than 24 hours
+        // since the last successful Navidrome sync. This prevents slow app startups.
+        val lastSync = navidromeRepository.lastFullSyncTime
+        val currentTime = System.currentTimeMillis()
+        val threshold = 24 * 60 * 60 * 1000L // 24 hours
+
+        if (currentTime - lastSync < threshold) {
+            Log.d(TAG, "Skipping Navidrome sync during main library sync - last sync was recent.")
+            // Still sync unified library from local cache to be safe
+            navidromeRepository.syncUnifiedLibrarySongsFromNavidrome()
+            return
+        }
+
         Log.i(TAG, "Syncing Navidrome data from server...")
         try {
             // Fetch playlists and songs from the Navidrome server, then sync to unified library
