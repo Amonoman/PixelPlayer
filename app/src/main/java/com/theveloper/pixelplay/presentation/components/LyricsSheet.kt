@@ -4,9 +4,7 @@ import android.widget.Toast
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.model.Lyrics
 import com.theveloper.pixelplay.R
-import androidx.activity.BackEventCompat
 import androidx.activity.compose.BackHandler
-import androidx.compose.ui.util.lerp
 import com.theveloper.pixelplay.presentation.components.scoped.LyricsPredictiveBackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.ui.zIndex
@@ -62,6 +60,7 @@ import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -121,7 +120,6 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.theveloper.pixelplay.data.preferences.dataStore
-import androidx.compose.ui.graphics.TransformOrigin
 
 import kotlin.math.abs
 import kotlin.math.pow
@@ -255,26 +253,30 @@ fun LyricsSheet(
     autoscrollAnimationSpec: AnimationSpec<Float>? = null // null = auto-detect from preference
 ) {
     // ─── Enter / Exit animation state ────────────────────────────────────────
-    // 0f = fully visible, 1f = fully dismissed (driven by predictive-back gesture or enter anim)
-    val backProgress = remember { Animatable(1f) }  // start at 1 → animate to 0 on enter
-    var lyricsSwipeEdge by remember { mutableStateOf<Int?>(null) }
+    // Mirrors the player-sheet pattern: a plain Float in state drives graphicsLayer
+    // at draw-phase (no recomposition per frame). 0f = fully visible, 1f = dismissed.
+    var backProgress by remember { mutableFloatStateOf(1f) }
 
-    // Enter animation: slide up + fade in on first composition.
+    // Draw-phase lambda provider — read only inside graphicsLayer so layout is never
+    // re-triggered during the gesture (same technique as SheetVisualState).
+    val backProgressProvider = rememberUpdatedState(backProgress)
+
+    // Enter animation: slide up from +6 % height + fade in.
     LaunchedEffect(Unit) {
-        backProgress.animateTo(
+        val anim = Animatable(1f)
+        anim.animateTo(
             targetValue = 0f,
             animationSpec = spring(
                 stiffness = Spring.StiffnessMediumLow,
                 dampingRatio = Spring.DampingRatioLowBouncy
             )
-        )
+        ) { backProgress = value }
     }
 
     // Predictive-back (Android 13+) or plain back on older devices.
     LyricsPredictiveBackHandler(
         enabled = true,
-        progress = backProgress,
-        onSwipeEdge = { lyricsSwipeEdge = it },
+        onProgressChanged = { backProgress = it },
         onBack = onBackClick
     )
 
@@ -516,27 +518,16 @@ fun LyricsSheet(
         modifier = modifier
             .fillMaxSize()
             // ─── Enter / Predictive-back exit transformation ──────────────────
-            // backProgress: 0f = fully visible, 1f = fully dismissed.
-            // We interpolate: scale 1→0.85, alpha 1→0, translateY 0→+120px,
-            // and corner radius 32→56dp (handled by clip below).
+            // Read backProgressProvider inside graphicsLayer (draw-phase) — no layout
+            // pass is triggered per gesture frame, same pattern as SheetVisualState.
+            // 0f = fully visible, 1f = fully dismissed.
+            // Effect: slides down 8 % of height and fades to transparent.
             .graphicsLayer {
-                val p = backProgress.value
-                // Scale: shrink to 85 % as the user swipes back.
-                val scale = lerp(1f, 0.85f, p)
-                scaleX = scale
-                scaleY = scale
-                // Fade out.
+                val p = backProgressProvider.value
                 alpha = lerp(1f, 0f, p)
-                // Slide down slightly for a natural "dropping away" feel.
-                translationY = lerp(0f, size.height * 0.06f, p)
-                // Shift left/right depending on which edge the gesture started from.
-                translationX = when (lyricsSwipeEdge) {
-                    androidx.activity.BackEventCompat.EDGE_RIGHT -> lerp(0f, size.width * 0.06f, p)
-                    else -> lerp(0f, -size.width * 0.06f, p)
-                }
-                transformOrigin = TransformOrigin(0.5f, 0.5f)
+                translationY = lerp(0f, size.height * 0.08f, p)
             }
-            .clip(RoundedCornerShape(lerp(32f, 56f, backProgress.value).dp))
+            .clip(RoundedCornerShape(32.dp))
             .pointerInput(Unit) {
                 detectDragGestures(
                     onDragStart = {
@@ -913,6 +904,8 @@ fun LyricsSheet(
                     onBackgroundColor = onBackgroundColor,
                     accentColor = accentColor,
                     onAccentColor = onAccentColor,
+                    // Pass progress so the back button animates with the gesture (draw-phase).
+                    backProgressProvider = { backProgressProvider.value },
                 )
              }
             }

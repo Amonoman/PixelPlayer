@@ -42,6 +42,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.util.lerp
 
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
@@ -57,7 +59,9 @@ fun LyricsFloatingToolbar(
     backgroundColor: Color,
     onBackgroundColor: Color,
     accentColor: Color,
-    onAccentColor: Color
+    onAccentColor: Color,
+    // Draw-phase lambda: 0f = fully visible, 1f = dismissed. Read inside graphicsLayer to avoid recomposition per frame.
+    backProgressProvider: () -> Float = { 0f }
 ) {
     if (showSyncedLyrics == null) return
 
@@ -68,6 +72,14 @@ fun LyricsFloatingToolbar(
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(
+            modifier = Modifier.graphicsLayer {
+                // Scale down and fade out as the predictive back gesture progresses.
+                val p = backProgressProvider()
+                val scale = lerp(1f, 0.7f, p)
+                scaleX = scale
+                scaleY = scale
+                alpha = lerp(1f, 0f, p)
+            },
             colors = IconButtonDefaults.iconButtonColors(
                 containerColor = backgroundColor,
                 contentColor = onBackgroundColor
