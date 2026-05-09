@@ -377,10 +377,15 @@ constructor(
                     // the user hasn't configured that cloud provider.
                     val hasTelegramChannels = telegramDao.getAllChannels().first().isNotEmpty()
                     val neteaseCount = neteaseDao.getNeteaseCount()
-                    val needsCloudSync = hasTelegramChannels ||
+                    // For Navidrome, we only do network sync if SYNC_THRESHOLD_MS (24h) threshold has passed.
+                    val navidromeNeedsNetworkSync = navidromeRepository.isLoggedIn && 
+                        (System.currentTimeMillis() - navidromeRepository.lastFullSyncTime >= NavidromeRepository.SYNC_THRESHOLD_MS)
+                    
+                    val needsActiveCloudSync = hasTelegramChannels ||
                         neteaseCount > 0 ||
-                        navidromeRepository.isLoggedIn
-                    if (needsCloudSync) {
+                        navidromeNeedsNetworkSync
+
+                    if (needsActiveCloudSync) {
                         setProgress(
                             workDataOf(
                                 PROGRESS_PHASE to SyncProgress.SyncPhase.SYNCING_CLOUD.ordinal
@@ -1756,11 +1761,10 @@ constructor(
     private suspend fun syncNavidromeData() {
         if (!navidromeRepository.isLoggedIn) return
 
-        // Only auto-sync Navidrome during main library sync if it's been more than 24 hours
-        // since the last successful Navidrome sync. This prevents slow app startups.
         val lastSync = navidromeRepository.lastFullSyncTime
         val currentTime = System.currentTimeMillis()
 
+        // Only auto-sync Navidrome during main library sync if it's been more than SYNC_THRESHOLD_MS (24h)
         if (currentTime - lastSync < NavidromeRepository.SYNC_THRESHOLD_MS) {
             Log.d(TAG, "Skipping Navidrome sync during main library sync - last sync was recent.")
             // Still sync unified library from local cache to be safe
