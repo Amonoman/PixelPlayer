@@ -51,7 +51,7 @@
     <string name="auth_web_exit_confirm_body">Sie können später zurückkehren. Der aktuelle Seitenstatus wird beim Schließen verworfen.</string>
     <string name="auth_exit">Beenden</string>
     <string name="auth_stay">Bleiben</string>
-    <string name="auth_login_netease_title">Login bei NetEase</string>
+    <string name="auth_login_netease_title">Login bei NetEase Cloud Music</string>
     <string name="auth_login_qq_title">Login bei QQ Music</string>
     <string name="auth_web_cd_web_back">Zurück im Web</string>
     <string name="auth_web_cd_web_forward">Vorwärts im Web</string>

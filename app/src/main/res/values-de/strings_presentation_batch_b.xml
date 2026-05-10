@@ -16,7 +16,7 @@
     <string name="presentation_batch_b_accounts_connect_service">%1$s verbinden</string>
     <string name="presentation_batch_b_accounts_service_paren_coming_soon">%1$s (Demnächst)</string>
     <string name="presentation_batch_b_service_telegram">Telegram</string>
-    <string name="presentation_batch_b_service_netease">Netease</string>
+    <string name="presentation_batch_b_service_netease">NetEase</string>
 
     <!-- PlaylistDetailScreen -->
     <string name="presentation_batch_b_sort_songs">Songs sortieren</string>
