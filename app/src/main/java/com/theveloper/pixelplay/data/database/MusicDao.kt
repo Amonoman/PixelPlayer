@@ -112,6 +112,9 @@ interface MusicDao {
     @Update
     suspend fun updateArtists(artists: List<ArtistEntity>)
 
+    @Query("SELECT * FROM artists WHERE id IN (:artistIds)")
+    suspend fun getArtistsByIds(artistIds: List<Long>): List<ArtistEntity>
+
     @Transaction
     suspend fun insertSongs(songs: List<SongEntity>) {
         if (songs.isEmpty()) return
@@ -147,7 +150,19 @@ interface MusicDao {
             if (rowId == -1L) artistsToUpdate.add(artists[index])
         }
         if (artistsToUpdate.isNotEmpty()) {
-            updateArtists(artistsToUpdate)
+            val existingById = getArtistsByIds(artistsToUpdate.map { it.id }).associateBy { it.id }
+            val mergedArtists = artistsToUpdate.map { incoming ->
+                val existing = existingById[incoming.id]
+                if (existing == null) {
+                    incoming
+                } else {
+                    incoming.copy(
+                        imageUrl = incoming.imageUrl ?: existing.imageUrl,
+                        customImageUri = incoming.customImageUri ?: existing.customImageUri
+                    )
+                }
+            }
+            updateArtists(mergedArtists)
         }
     }
 

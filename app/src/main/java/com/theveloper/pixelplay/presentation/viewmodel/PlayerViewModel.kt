@@ -2335,7 +2335,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun triggerArtistNavigationFromPlayer(artistId: Long) {
-        if (artistId <= 0) {
+        if (artistId == 0L) {
             Log.d("ArtistDebug", "triggerArtistNavigationFromPlayer ignored invalid artistId=$artistId")
             return
         }
@@ -2348,10 +2348,24 @@ class PlayerViewModel @Inject constructor(
 
         artistNavigationJob?.cancel()
         artistNavigationJob = viewModelScope.launch {
+            var resolvedId = artistId
             val currentSong = playbackStateHolder.stablePlayerState.value.currentSong
+            
+            if (resolvedId == -1L && currentSong != null) {
+                val idFromName = musicRepository.getArtistIdByName(currentSong.artist)
+                if (idFromName != null) {
+                    resolvedId = idFromName
+                }
+            }
+
+            if (resolvedId == 0L || resolvedId == -1L) {
+                Log.d("ArtistDebug", "triggerArtistNavigationFromPlayer: could not resolve artistId for name=${currentSong?.artist}")
+                return@launch
+            }
+
             Log.d(
                 "ArtistDebug",
-                "triggerArtistNavigationFromPlayer: artistId=$artistId, songId=${currentSong?.id}, title=${currentSong?.title}"
+                "triggerArtistNavigationFromPlayer: artistId=$resolvedId, songId=${currentSong?.id}, title=${currentSong?.title}"
             )
             collapsePlayerSheet()
 
@@ -2616,6 +2630,54 @@ class PlayerViewModel @Inject constructor(
         return playbackStateHolder.currentPosition.value
     }
 
+    private fun syncDisplayedMediaItemIfChanged(player: Player) {
+        if (isRemoteSessionControllingPlayback()) return
+
+        val mediaItem = player.currentMediaItem ?: return
+        val currentSongId = playbackStateHolder.stablePlayerState.value.currentSong?.id
+        if (currentSongId == mediaItem.mediaId) return
+
+        playbackStateHolder.onPlaybackOccurrenceTransition(mediaItem.mediaId)
+        preparePlaybackAudioMetadataForMedia(mediaItem.mediaId)
+        transitionSchedulerJob?.cancel()
+        lyricsStateHolder.cancelLoading()
+        resetLyricsSearchState()
+
+        val song = resolveSongFromMediaItem(mediaItem)
+        val currentPosition = player.currentPosition.coerceAtLeast(0L)
+        val resolvedDuration = if (song != null) {
+            playbackStateHolder.resolveDurationForPlaybackState(
+                reportedDurationMs = player.duration,
+                songDurationHintMs = song.duration.coerceAtLeast(0L),
+                currentPositionMs = currentPosition
+            )
+        } else {
+            0L
+        }
+
+        playbackStateHolder.updateStablePlayerState {
+            it.copy(
+                currentSong = song,
+                currentMediaItemIndex = player.currentMediaItemIndex,
+                totalDuration = resolvedDuration,
+                lyrics = null,
+                isLoadingLyrics = song != null,
+                isPlaying = player.isPlaying,
+                playWhenReady = player.playWhenReady
+            )
+        }
+        syncPlaybackPositionFromPlayer(mediaItem.mediaId, currentPosition)
+
+        song?.let { currentSongValue ->
+            viewModelScope.launch {
+                val uri = currentSongValue.albumArtUriString?.toUri()
+                val currentUri = playbackStateHolder.stablePlayerState.value.currentSong?.albumArtUriString
+                themeStateHolder.extractAndGenerateColorScheme(uri, currentUri)
+            }
+            loadLyricsForCurrentSong()
+        }
+    }
+
     private fun setupMediaControllerListeners() {
         Trace.beginSection("PlayerViewModel.setupMediaControllerListeners")
         val playerCtrl = mediaController ?: return Trace.endSection()
@@ -2824,6 +2886,7 @@ class PlayerViewModel @Inject constructor(
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (isRemoteSessionControllingPlayback()) return
                 refreshPlaybackAudioMetadata(playerCtrl)
+                syncDisplayedMediaItemIfChanged(playerCtrl)
 
                 // Debounce buffering state to avoid flickering
                 bufferingDebounceJob?.cancel()
@@ -2883,6 +2946,9 @@ class PlayerViewModel @Inject constructor(
                 if (isRemoteSessionControllingPlayback()) return
                 refreshPlaybackAudioMetadata(playerCtrl, tracks)
             }
+            override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
+                syncDisplayedMediaItemIfChanged(playerCtrl)
+            }
             override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
                 // IMPORTANT: We don't use ExoPlayer's shuffle mode anymore
                 // Instead, we manually shuffle the queue to fix crossfade issues
@@ -2901,6 +2967,7 @@ class PlayerViewModel @Inject constructor(
             }
             override fun onTimelineChanged(timeline: Timeline, reason: Int) {
                 if (isRemoteSessionControllingPlayback()) return
+                syncDisplayedMediaItemIfChanged(playerCtrl)
                 // Skip updates during crossfade transitions to prevent UI freeze and jumpy state.
                 if (dualPlayerEngine.isTransitionRunning()) return
 

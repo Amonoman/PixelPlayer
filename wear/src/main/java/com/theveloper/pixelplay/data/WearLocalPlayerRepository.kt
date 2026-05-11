@@ -497,8 +497,15 @@ class WearLocalPlayerRepository @Inject constructor(
         positionUpdateJob?.cancel()
         positionUpdateJob = scope.launch {
             while (isActive) {
+                // Skip the StateFlow churn when the user can't see the UI: the
+                // ExoPlayer keeps tracking position internally, we just don't
+                // need to repaint composables. We still wake every second to
+                // notice the screen turning back on quickly, but we don't run
+                // the (allocating) updateState() pipeline.
+                if (WearLifecycleState.isInteractiveNow) {
+                    updateState()
+                }
                 delay(POSITION_UPDATE_INTERVAL_MS)
-                updateState()
             }
         }
     }

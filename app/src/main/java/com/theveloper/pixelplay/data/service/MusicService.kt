@@ -1,6 +1,7 @@
 package com.theveloper.pixelplay.data.service
 
 import android.app.AlarmManager
+import android.app.BackgroundServiceStartNotAllowedException
 import android.app.ForegroundServiceStartNotAllowedException
 import android.app.PendingIntent
 import android.content.ComponentName
@@ -258,29 +259,18 @@ class MusicService : MediaLibraryService() {
 
     private val playerSwapListener: (Player) -> Unit = { newPlayer ->
         serviceScope.launch(Dispatchers.Main) {
-            val oldPlayer = mediaSession?.player
-            oldPlayer?.removeListener(playerListener)
+            publishMediaSessionPlayer(newPlayer, "Swapped MediaSession player to new instance.")
+            prepareReplayGainForTransitionPlayer(newPlayer)
+        }
+    }
 
-            mediaSession?.player = newPlayer
-            newPlayer.addListener(playerListener)
-
-            Timber.tag("MusicService").d("Swapped MediaSession player to new instance.")
-            requestWidgetFullUpdate(force = true)
-            mediaSession?.let { refreshMediaSessionUi(it) }
-
-            // Pre-compute ReplayGain for the incoming track while the crossfade is still running.
-            // isTransitionRunning() is true here, so applyReplayGain stores the result as
-            // pendingReplayGainVolume. onTransitionFinished() applies it cleanly once the fade
-            // loop ends, avoiding any volume jump on the incoming track.
-            //
-            // Also try to set incomingTrackReplayGainVolume immediately from cache so the
-            // fade loop can use the correct final volume even before the IO coroutine finishes.
-            val incomingItem = newPlayer.currentMediaItem
-            val cachedVolume = getCachedReplayGainVolume(incomingItem)
-            if (cachedVolume != null) {
-                engine.incomingTrackReplayGainVolume = cachedVolume
-            }
-            applyReplayGain(incomingItem)
+    private val transitionDisplayPlayerListener: (Player) -> Unit = { displayPlayer ->
+        serviceScope.launch(Dispatchers.Main) {
+            publishMediaSessionPlayer(
+                displayPlayer,
+                "Published incoming crossfade player to MediaSession."
+            )
+            prepareReplayGainForTransitionPlayer(displayPlayer)
         }
     }
 
@@ -290,6 +280,36 @@ class MusicService : MediaLibraryService() {
         serviceScope.launch(Dispatchers.Main) {
             onTransitionFinished()
         }
+    }
+
+    private fun publishMediaSessionPlayer(player: Player, logMessage: String) {
+        val session = mediaSession ?: return
+        val oldPlayer = session.player
+        if (oldPlayer !== player) {
+            oldPlayer.removeListener(playerListener)
+            session.player = player
+            player.addListener(playerListener)
+        }
+
+        Timber.tag("MusicService").d(logMessage)
+        requestWidgetFullUpdate(force = true)
+        refreshMediaSessionUi(session)
+    }
+
+    private fun prepareReplayGainForTransitionPlayer(player: Player) {
+        // Pre-compute ReplayGain for the incoming track while the crossfade is still running.
+        // isTransitionRunning() is true here, so applyReplayGain stores the result as
+        // pendingReplayGainVolume. onTransitionFinished() applies it cleanly once the fade
+        // loop ends, avoiding any volume jump on the incoming track.
+        //
+        // Also try to set incomingTrackReplayGainVolume immediately from cache so the
+        // fade loop can use the correct final volume even before the IO coroutine finishes.
+        val incomingItem = player.currentMediaItem
+        val cachedVolume = getCachedReplayGainVolume(incomingItem)
+        if (cachedVolume != null) {
+            engine.incomingTrackReplayGainVolume = cachedVolume
+        }
+        applyReplayGain(incomingItem)
     }
 
     override fun onCreate() {
@@ -331,6 +351,7 @@ class MusicService : MediaLibraryService() {
 
         // Handle player swaps (crossfade) to keep MediaSession in sync
         engine.addPlayerSwapListener(playerSwapListener)
+        engine.addTransitionDisplayPlayerListener(transitionDisplayPlayerListener)
         engine.addTransitionFinishedListener(transitionFinishedListener)
 
         controller.initialize()
@@ -1022,13 +1043,19 @@ class MusicService : MediaLibraryService() {
         return getNavidromeId(mediaItem) != null
     }
 
-    private fun reportNavidromePlayback(state: String) {
+    private fun reportNavidromePlayback(state: String, mediaItem: MediaItem? = engine.masterPlayer.currentMediaItem) {
         val player = engine.masterPlayer
         // Ensure we capture player state on main thread to avoid IllegalStateException
-        val mediaItem = player.currentMediaItem ?: return
-        val navidromeId = getNavidromeId(mediaItem) ?: return
+        val targetItem = mediaItem ?: return
+        val navidromeId = getNavidromeId(targetItem) ?: return
 
-        val positionMs = player.currentPosition
+        // If reporting for current item, use player position.
+        // If reporting "stopped" for a transition, use the item's duration as final position.
+        val positionMs = if (targetItem === player.currentMediaItem) {
+            player.currentPosition
+        } else {
+            targetItem.mediaMetadata.extras?.getLong(MediaItemBuilder.EXTERNAL_EXTRA_DURATION) ?: 0L
+        }
         val playbackRate = player.playbackParameters.speed
 
         // Use appScope for the network call so it survives if serviceScope is cancelled
@@ -1160,6 +1187,20 @@ class MusicService : MediaLibraryService() {
                 val state = if (engine.masterPlayer.isPlaying) "playing" else "paused"
                 reportNavidromePlayback(state)
             }
+
+            if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION) {
+                val finishedItem = oldPosition.mediaItem
+                if (isNavidromeMediaItem(finishedItem)) {
+                    val prevId = getNavidromeId(finishedItem)
+                    reportNavidromePlayback("stopped", finishedItem)
+                    if (prevId != null) {
+                        appScope.launch(Dispatchers.IO) {
+                            navidromeRepository.scrobble(prevId, submission = true)
+                        }
+                    }
+                }
+            }
+
             if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION ||
                 reason == Player.DISCONTINUITY_REASON_SEEK
             ) {
@@ -1329,10 +1370,7 @@ class MusicService : MediaLibraryService() {
                 // volume instead of hard-coding 1f, preventing the audible jump.
                 pendingReplayGainVolume = volume
                 engine.incomingTrackReplayGainVolume = volume
-                // Apply immediately to masterPlayer so volume is never lost if the
-                // transition is interrupted (e.g. user skips during crossfade).
-                setPlayerVolume(engine.masterPlayer, volume)
-                Timber.tag(TAG).d("ReplayGain: Applied + stored pending volume=%.2f for %s (transition running)",
+                Timber.tag(TAG).d("ReplayGain: Stored pending volume=%.2f for %s (transition running)",
                     volume, mediaItem.mediaMetadata.title
                 )
             } else {
@@ -1394,15 +1432,13 @@ class MusicService : MediaLibraryService() {
         }
 
         if (pending != null) {
-            // pending was already applied to masterPlayer during the transition to ensure
-            // volume is never lost if the transition was interrupted (e.g. user skipped).
-            // Re-applying here is a no-op in volume terms but confirms the final state.
+            // The crossfade loop ramps to this value; apply it now as the stable post-fade volume.
             // Also update lastAppliedReplayGainVolume so any subsequent onPositionDiscontinuity
             // (REASON_AUTO_TRANSITION fires right after crossfade ends) uses this value
             // immediately instead of launching a new IO coroutine and causing a spike.
             lastAppliedReplayGainVolume = pending
             setPlayerVolume(player, pending)
-            Timber.tag(TAG).d("ReplayGain: Transition finished, confirmed pending volume=%.2f", pending)
+            Timber.tag(TAG).d("ReplayGain: Transition finished, applied pending volume=%.2f", pending)
         } else {
             // No pending volume was computed during transition, trigger full computation
             applyReplayGain(mediaSession?.player?.currentMediaItem)
@@ -1548,7 +1584,9 @@ class MusicService : MediaLibraryService() {
         replayGainJob?.cancel()
 
         engine.removePlayerSwapListener(playerSwapListener)
+        engine.removeTransitionDisplayPlayerListener(transitionDisplayPlayerListener)
         engine.removeTransitionFinishedListener(transitionFinishedListener)
+        mediaSession?.player?.removeListener(playerListener)
         engine.masterPlayer.removeListener(playerListener)
 
         mediaSession?.run {
@@ -1561,6 +1599,26 @@ class MusicService : MediaLibraryService() {
         Thread.currentThread().setUncaughtExceptionHandler(previousMainThreadExceptionHandler)
         previousMainThreadExceptionHandler = null
         super.onDestroy()
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        // Release in-process bitmap caches when the system signals memory pressure.
+        // MusicService holds up to ~220 KB in cachedWidgetArtBytes and another copy
+        // inside lastWidgetPlayerInfo.albumArtBitmapData. Under moderate-to-critical
+        // pressure these are safe to drop — the next widget update cycle will reload them.
+        //
+        // Raw int value used instead of deprecated ComponentCallbacks2 constant:
+        //   TRIM_MEMORY_RUNNING_LOW = 10
+        // This single threshold covers all higher-severity levels too
+        // (TRIM_MEMORY_BACKGROUND = 40, TRIM_MEMORY_COMPLETE = 80, etc.).
+        if (level >= 10 /* TRIM_MEMORY_RUNNING_LOW */) {
+            Timber.tag(TAG).d("onTrimMemory(level=%d): releasing widget bitmap caches", level)
+            invalidateCachedWidgetArtwork()
+            // Drop the stale PlayerInfo copy so its embedded ByteArray is GC-eligible.
+            // The next processWidgetUpdateInternal() call will rebuild it from scratch.
+            lastWidgetPlayerInfo = null
+        }
     }
 
     private fun registerHeadsetReconnectMonitor() {
@@ -2654,6 +2712,15 @@ class MusicService : MediaLibraryService() {
                 Timber.tag(TAG).w(
                     e,
                     "startForegroundService not allowed; ignoring redundant self-start request"
+                )
+                serviceIntent?.component ?: ComponentName(this, javaClass)
+            } catch (e: BackgroundServiceStartNotAllowedException) {
+                // Thrown when startForegroundService() itself is called while the app is in a
+                // background-cached state (distinct from ForegroundServiceStartNotAllowedException).
+                // Safe to swallow: the service is either already running or Media3 will retry.
+                Timber.tag(TAG).w(
+                    e,
+                    "startForegroundService blocked (app in background); ignoring self-start request"
                 )
                 serviceIntent?.component ?: ComponentName(this, javaClass)
             }

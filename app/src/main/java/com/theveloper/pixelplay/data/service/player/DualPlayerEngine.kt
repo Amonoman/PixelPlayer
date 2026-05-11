@@ -69,7 +69,8 @@ data class ActiveDecoderInfo(
 /**
  * Manages two ExoPlayer instances (A and B) to enable seamless transitions.
  *
- * Player A is the designated "master" player, which is exposed to the MediaSession.
+ * Player A is the designated "master" player. During a crossfade the MediaSession can
+ * expose Player B early for UI continuity, while Player A remains alive to fade out.
  * Player B is the auxiliary player used to pre-buffer and fade in the next track.
  * After a transition, Player A adopts the state of Player B, ensuring continuity.
  */
@@ -89,9 +90,16 @@ class DualPlayerEngine @Inject constructor(
 ) {
     private companion object {
         private const val AUDIO_OFFLOAD_BUFFERING_FALLBACK_MS = 4_000L
+        private const val MAX_AUXILIARY_TIMELINE_ITEMS = 200
         private val LOCAL_MEDIA_SCHEMES = setOf("content", "file", "android.resource")
         private val REMOTE_MEDIA_SCHEMES = setOf("http", "https", "telegram", "netease", "qqmusic", "navidrome", "jellyfin", "gdrive")
     }
+
+    data class TransitionTarget(
+        val mediaItem: MediaItem,
+        val absoluteIndex: Int,
+        val queueSize: Int
+    )
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     var hiFiModeEnabled: Boolean = false
@@ -101,11 +109,17 @@ class DualPlayerEngine @Inject constructor(
     private var bufferingFallbackJob: Job? = null
     private var transitionRunning = false
     private var preResolutionJob: Job? = null
+    private var queueSnapshot: List<MediaItem> = emptyList()
+    private var activeWindowStartIndex = 0
+    private var activePlayerUsesWindowedQueue = false
+    private var preparedWindowStartIndex = 0
+    private var preparedPlayerUsesWindowedQueue = false
 
     private lateinit var playerA: ExoPlayer
     private lateinit var playerB: ExoPlayer
 
     private val onPlayerSwappedListeners = mutableListOf<(Player) -> Unit>()
+    private val onTransitionDisplayPlayerListeners = mutableListOf<(Player) -> Unit>()
     private val onTransitionFinishedListeners = mutableListOf<() -> Unit>()
     
     // Active Audio Session ID Flow
@@ -256,6 +270,13 @@ class DualPlayerEngine @Inject constructor(
             }
         }
 
+        override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+            if (transitionRunning) return
+            if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED || queueSnapshot.isEmpty()) {
+                refreshQueueSnapshotFromMaster(windowStartIndex = 0, usesWindowedQueue = false)
+            }
+        }
+
         override fun onPlaybackStateChanged(playbackState: Int) {
             when (playbackState) {
                 Player.STATE_BUFFERING -> {
@@ -280,6 +301,14 @@ class DualPlayerEngine @Inject constructor(
 
     fun removePlayerSwapListener(listener: (Player) -> Unit) {
         onPlayerSwappedListeners.remove(listener)
+    }
+
+    fun addTransitionDisplayPlayerListener(listener: (Player) -> Unit) {
+        onTransitionDisplayPlayerListeners.add(listener)
+    }
+
+    fun removeTransitionDisplayPlayerListener(listener: (Player) -> Unit) {
+        onTransitionDisplayPlayerListeners.remove(listener)
     }
 
     fun addTransitionFinishedListener(listener: () -> Unit) {
@@ -322,6 +351,10 @@ class DualPlayerEngine @Inject constructor(
 
         _activeAudioSessionId.value = playerA.audioSessionId
         isReleased = false
+        queueSnapshot = emptyList()
+        activeWindowStartIndex = 0
+        activePlayerUsesWindowedQueue = false
+        resetPreparedWindowState()
     }
 
     private fun requestAudioFocus() {
@@ -630,6 +663,26 @@ class DualPlayerEngine @Inject constructor(
         playerA.pauseAtEndOfMediaItems = shouldPause
     }
 
+    fun getNextTransitionTarget(currentMediaItem: MediaItem, repeatMode: Int): TransitionTarget? {
+        val snapshot = ensureQueueSnapshot()
+        if (snapshot.isEmpty()) return null
+
+        val currentAbsoluteIndex = resolveCurrentAbsoluteIndex(currentMediaItem, snapshot)
+        if (currentAbsoluteIndex == C.INDEX_UNSET) return null
+
+        val targetIndex = when (repeatMode) {
+            Player.REPEAT_MODE_ONE -> currentAbsoluteIndex
+            else -> currentAbsoluteIndex + 1
+        }
+
+        val targetItem = snapshot.getOrNull(targetIndex) ?: return null
+        return TransitionTarget(
+            mediaItem = targetItem,
+            absoluteIndex = targetIndex,
+            queueSize = snapshot.size
+        )
+    }
+
     fun setHiFiMode(enabled: Boolean) {
         if (hiFiModeEnabled == enabled) return
         if (enabled && !HiFiCapabilityChecker.isSupported()) {
@@ -724,66 +777,47 @@ class DualPlayerEngine @Inject constructor(
         return if (resolvedUri == uri) mediaItem else mediaItem.buildUpon().setUri(resolvedUri).build()
     }
 
+    suspend fun prepareNext(target: TransitionTarget, startPositionMs: Long = 0L) {
+        prepareNext(target.mediaItem, target.absoluteIndex, startPositionMs)
+    }
+
     suspend fun prepareNext(mediaItem: MediaItem, startPositionMs: Long = 0L) {
+        val preferredIndex = findMediaItemIndex(
+            items = ensureQueueSnapshot(),
+            mediaId = mediaItem.mediaId,
+            preferAfterExclusive = resolveCurrentAbsoluteIndex(playerA.currentMediaItem ?: mediaItem, queueSnapshot)
+        )
+        prepareNext(mediaItem, preferredIndex, startPositionMs)
+    }
+
+    private suspend fun prepareNext(mediaItem: MediaItem, preferredAbsoluteIndex: Int, startPositionMs: Long = 0L) {
         try {
-            val resolvedItem = resolveMediaItem(mediaItem)
-            
-            // OPTIMIZATION: Collect the current state of playerA's queue.
-            // This ensures playerB has the full context immediately, preventing
-            // jumpy playback when we swap and then try to add thousands of items later.
-            val timeline = playerA.currentTimeline
-            val count = timeline.windowCount
-            val currentIndex = playerA.currentMediaItemIndex
-            
-            // Attempt to find where the requested mediaItem fits in the current timeline
-            var targetIndex = -1
-            val window = Timeline.Window()
-            for (i in 0 until count) {
-                if (timeline.getWindow(i, window).mediaItem.mediaId == mediaItem.mediaId) {
-                    // Favor indices ahead of current index if there are duplicates
-                    if (i > currentIndex) {
-                        targetIndex = i
-                        break
-                    }
-                    if (targetIndex == -1) targetIndex = i
-                }
+            val snapshot = ensureQueueSnapshot()
+            val currentAbsoluteIndex = resolveCurrentAbsoluteIndex(playerA.currentMediaItem ?: mediaItem, snapshot)
+            val targetIndex = when {
+                preferredAbsoluteIndex in snapshot.indices &&
+                    snapshot[preferredAbsoluteIndex].mediaId == mediaItem.mediaId -> preferredAbsoluteIndex
+                else -> findMediaItemIndex(snapshot, mediaItem.mediaId, currentAbsoluteIndex)
             }
+            val resolvedItem = resolveMediaItem(mediaItem)
 
             playerB.stop()
             playerB.clearMediaItems()
-            
-            if (targetIndex != -1) {
-                // OPTIMIZATION: Use a smaller window for the auxiliary transition player
-                // if the queue is very large. This prevents OOMs and freezes during skips.
-                // We only need a few items to ensure continuity for the transition itself.
-                
-                val maxAuxItems = 200
-                if (count > maxAuxItems) {
-                    val halfWindow = maxAuxItems / 2
-                    val start = (targetIndex - halfWindow).coerceAtLeast(0)
-                    val end = (targetIndex + halfWindow).coerceAtMost(count)
-                    val windowItems = ArrayList<MediaItem>(end - start)
-                    for (i in start until end) {
-                        val item = timeline.getWindow(i, window).mediaItem
-                        windowItems.add(if (i == targetIndex) resolvedItem else item)
-                    }
-                    playerB.setMediaItems(windowItems, targetIndex - start, startPositionMs)
-                    
-                    // Note: This playerB now has a partial timeline. When it becomes master,
-                    // we will need to restore the full timeline if the user wants to see it.
-                    // However, DualPlayerEngine's design swaps players. 
-                    // To maintain the full queue, we should ideally not trim it, 
-                    // but the user is experiencing OOMs.
-                } else {
-                    val allItems = ArrayList<MediaItem>(count)
-                    for (i in 0 until count) {
-                        val item = timeline.getWindow(i, window).mediaItem
-                        allItems.add(if (i == targetIndex) resolvedItem else item)
-                    }
-                    playerB.setMediaItems(allItems, targetIndex, startPositionMs)
+
+            if (targetIndex != C.INDEX_UNSET && snapshot.isNotEmpty()) {
+                val count = snapshot.size
+                val (start, end) = auxiliaryWindowBounds(targetIndex, count)
+                val windowItems = ArrayList<MediaItem>(end - start)
+                for (i in start until end) {
+                    val item = snapshot[i]
+                    windowItems.add(if (i == targetIndex) resolvedItem else item)
                 }
+                preparedWindowStartIndex = start
+                preparedPlayerUsesWindowedQueue = count > MAX_AUXILIARY_TIMELINE_ITEMS
+                playerB.setMediaItems(windowItems, targetIndex - start, startPositionMs)
             } else {
                 // Fallback for single item if not found in current timeline
+                resetPreparedWindowState()
                 playerB.setMediaItem(resolvedItem)
                 playerB.seekTo(startPositionMs)
             }
@@ -792,6 +826,7 @@ class DualPlayerEngine @Inject constructor(
             playerB.volume = 0f
             playerB.pause()
         } catch (e: Exception) {
+            resetPreparedWindowState()
             Timber.tag("TransitionDebug").e(e, "Failed to prepare next player")
         }
     }
@@ -799,6 +834,7 @@ class DualPlayerEngine @Inject constructor(
     fun cancelNext() {
         transitionJob?.cancel()
         transitionRunning = false
+        resetPreparedWindowState()
         if (::playerB.isInitialized && playerB.mediaItemCount > 0) {
             try {
                 playerB.stop()
@@ -854,63 +890,140 @@ class DualPlayerEngine @Inject constructor(
         playerB.playWhenReady = true
         playerB.play()
 
-        if (!playerB.isPlaying) {
-            if (!awaitPlayerPlaying(playerB, 2000L)) {
-                playerA.volume = 1f
-                setPauseAtEndOfMediaItems(false)
-                return
-            }
-        }
-
-        delay(75)
-
         val outgoingPlayer = playerA
         val incomingPlayer = playerB
 
         incomingPlayer.repeatMode = outgoingPlayer.repeatMode
         incomingPlayer.shuffleModeEnabled = outgoingPlayer.shuffleModeEnabled
+        outgoingPlayer.pauseAtEndOfMediaItems = true
+        incomingPlayer.pauseAtEndOfMediaItems = false
+        onTransitionDisplayPlayerListeners.forEach { it(incomingPlayer) }
+
+        val duration = settings.durationMs.toLong().coerceAtLeast(500L)
+        val stepMs = 32L
+        val startedAtMs = SystemClock.elapsedRealtime()
+
+        while (true) {
+            val elapsed = (SystemClock.elapsedRealtime() - startedAtMs).coerceAtMost(duration)
+            val progress = (elapsed.toFloat() / duration).coerceIn(0f, 1f)
+            val volIn = envelope(progress, settings.curveIn)
+            val volOut = 1f - envelope(progress, settings.curveOut)
+            val incomingTarget = incomingTrackReplayGainVolume ?: 1f
+            incomingPlayer.volume = (volIn * incomingTarget).coerceIn(0f, 1f)
+            outgoingPlayer.volume = (volOut * outgoingStartVolume).coerceIn(0f, 1f)
+
+            if (elapsed >= duration) break
+            delay(stepMs)
+        }
+
+        outgoingPlayer.volume = 0f
+        incomingPlayer.volume = incomingTrackReplayGainVolume ?: 1f
+        incomingTrackReplayGainVolume = null
+
         outgoingPlayer.removeListener(masterPlayerListener)
         outgoingPlayer.removeAnalyticsListener(masterPlayerListener)
 
         playerA = incomingPlayer
         playerB = outgoingPlayer
-        
-        playerB.pauseAtEndOfMediaItems = false
-        playerA.pauseAtEndOfMediaItems = false
+        activeWindowStartIndex = preparedWindowStartIndex
+        activePlayerUsesWindowedQueue = preparedPlayerUsesWindowedQueue
+        resetPreparedWindowState()
 
+        playerA.pauseAtEndOfMediaItems = false
+        playerB.pauseAtEndOfMediaItems = false
         playerA.addListener(masterPlayerListener)
         playerA.addAnalyticsListener(masterPlayerListener)
         if (playerA.playWhenReady) requestAudioFocus()
 
         onPlayerSwappedListeners.forEach { it(playerA) }
         _activeAudioSessionId.value = playerA.audioSessionId
-        
-        val duration = settings.durationMs.toLong().coerceAtLeast(500L)
-        val stepMs = 32L
-        var elapsed = 0L
-
-        while (elapsed <= duration) {
-            val progress = (elapsed.toFloat() / duration).coerceIn(0f, 1f)
-            val volIn = envelope(progress, settings.curveIn)
-            val volOut = 1f - envelope(progress, settings.curveOut)
-            val incomingTarget = incomingTrackReplayGainVolume ?: 1f
-            playerA.volume = (volIn * incomingTarget).coerceIn(0f, 1f)
-            playerB.volume = (volOut * outgoingStartVolume).coerceIn(0f, 1f)
-
-            if (playerA.playbackState == Player.STATE_ENDED || playerB.playbackState == Player.STATE_ENDED) break
-            delay(stepMs)
-            elapsed += stepMs
-        }
-
-        playerB.volume = 0f
-        playerA.volume = incomingTrackReplayGainVolume ?: 1f
-        incomingTrackReplayGainVolume = null
 
         playerB.pause()
         playerB.stop()
         playerB.clearMediaItems()
 
         setPauseAtEndOfMediaItems(false)
+    }
+
+    private fun ensureQueueSnapshot(): List<MediaItem> {
+        if (!activePlayerUsesWindowedQueue && queueSnapshot.size != playerA.mediaItemCount) {
+            refreshQueueSnapshotFromMaster(windowStartIndex = 0, usesWindowedQueue = false)
+        }
+        if (queueSnapshot.isEmpty()) {
+            refreshQueueSnapshotFromMaster(windowStartIndex = 0, usesWindowedQueue = false)
+        }
+        return queueSnapshot
+    }
+
+    private fun refreshQueueSnapshotFromMaster(windowStartIndex: Int, usesWindowedQueue: Boolean) {
+        if (!::playerA.isInitialized) return
+
+        val count = playerA.mediaItemCount
+        if (count <= 0) {
+            queueSnapshot = emptyList()
+            activeWindowStartIndex = 0
+            activePlayerUsesWindowedQueue = false
+            return
+        }
+
+        val items = ArrayList<MediaItem>(count)
+        for (i in 0 until count) {
+            items.add(playerA.getMediaItemAt(i))
+        }
+
+        queueSnapshot = items
+        activeWindowStartIndex = windowStartIndex
+        activePlayerUsesWindowedQueue = usesWindowedQueue
+    }
+
+    private fun resolveCurrentAbsoluteIndex(mediaItem: MediaItem, snapshot: List<MediaItem>): Int {
+        if (snapshot.isEmpty()) return C.INDEX_UNSET
+
+        val playerIndex = playerA.currentMediaItemIndex
+        if (activePlayerUsesWindowedQueue) {
+            val absoluteIndex = activeWindowStartIndex + playerIndex
+            if (absoluteIndex in snapshot.indices &&
+                snapshot[absoluteIndex].mediaId == mediaItem.mediaId
+            ) {
+                return absoluteIndex
+            }
+        } else if (playerIndex in snapshot.indices &&
+            snapshot[playerIndex].mediaId == mediaItem.mediaId
+        ) {
+            return playerIndex
+        }
+
+        return findMediaItemIndex(snapshot, mediaItem.mediaId, preferAfterExclusive = C.INDEX_UNSET)
+    }
+
+    private fun findMediaItemIndex(
+        items: List<MediaItem>,
+        mediaId: String,
+        preferAfterExclusive: Int
+    ): Int {
+        var fallback = C.INDEX_UNSET
+        for (i in items.indices) {
+            if (items[i].mediaId == mediaId) {
+                if (preferAfterExclusive != C.INDEX_UNSET && i > preferAfterExclusive) return i
+                if (fallback == C.INDEX_UNSET) fallback = i
+            }
+        }
+        return fallback
+    }
+
+    private fun auxiliaryWindowBounds(targetIndex: Int, count: Int): Pair<Int, Int> {
+        if (count <= MAX_AUXILIARY_TIMELINE_ITEMS) return 0 to count
+
+        val halfWindow = MAX_AUXILIARY_TIMELINE_ITEMS / 2
+        var start = (targetIndex - halfWindow).coerceAtLeast(0)
+        var end = (start + MAX_AUXILIARY_TIMELINE_ITEMS).coerceAtMost(count)
+        start = (end - MAX_AUXILIARY_TIMELINE_ITEMS).coerceAtLeast(0)
+        return start to end
+    }
+
+    private fun resetPreparedWindowState() {
+        preparedWindowStartIndex = 0
+        preparedPlayerUsesWindowedQueue = false
     }
 
     private suspend fun awaitPlayerReady(player: ExoPlayer, timeoutMs: Long): Boolean {

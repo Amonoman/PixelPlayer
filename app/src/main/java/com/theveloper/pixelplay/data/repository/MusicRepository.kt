@@ -280,6 +280,7 @@ interface MusicRepository {
      */
     fun getSong(songId: String): Flow<Song?>
     fun getArtistById(artistId: Long): Flow<Artist?>
+    suspend fun getArtistIdByName(name: String): Long?
     fun getArtistsForSong(songId: Long): Flow<List<Artist>>
 
     /**

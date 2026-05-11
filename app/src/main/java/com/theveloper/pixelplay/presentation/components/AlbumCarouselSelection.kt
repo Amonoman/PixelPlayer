@@ -39,6 +39,7 @@ fun AlbumCarouselSection(
     currentSong: Song?,
     queue: ImmutableList<Song>,
     expansionFraction: Float,
+    currentMediaItemIndex: Int = -1,
     requestedScrollIndex: Int? = null,
     onSongSelected: (Song) -> Unit,
     onAlbumClick: (Song) -> Unit = {},
@@ -50,13 +51,12 @@ fun AlbumCarouselSection(
     if (queue.isEmpty()) return
 
     // Mantiene compatibilidad con tu llamada actual
-    val initialIndex = remember(currentSong?.id, queue) {
-        val songId = currentSong?.id ?: return@remember 0
-        queue.indexOfFirst { it.id == songId }
-            .takeIf { it >= 0 }
-            ?: queue.indexOf(currentSong)
-                .takeIf { it >= 0 }
-                ?: 0
+    val initialIndex = remember(currentSong?.id, currentMediaItemIndex, queue) {
+        resolveCurrentQueueIndex(
+            currentSong = currentSong,
+            currentMediaItemIndex = currentMediaItemIndex,
+            queue = queue
+        )
     }
 
     val carouselState = rememberRoundedParallaxCarouselState(
@@ -66,23 +66,25 @@ fun AlbumCarouselSection(
 
     // Calculate target size based on quality
     val targetSize = remember(albumArtQuality) {
-        if (albumArtQuality.maxSize == 0) Size.ORIGINAL
+        if (albumArtQuality.maxSize == 0) SafeOriginalAlbumArtSize
         else Size(albumArtQuality.maxSize, albumArtQuality.maxSize)
     }
 
     // Player -> Carousel
-    val currentSongIndex = remember(currentSong?.id, queue) {
-        val songId = currentSong?.id ?: return@remember 0
-        queue.indexOfFirst { it.id == songId }
-            .takeIf { it >= 0 }
-            ?: queue.indexOf(currentSong)
-                .takeIf { it >= 0 }
-                ?: 0
+    val currentSongIndex = remember(currentSong?.id, currentMediaItemIndex, queue) {
+        resolveCurrentQueueIndex(
+            currentSong = currentSong,
+            currentMediaItemIndex = currentMediaItemIndex,
+            queue = queue
+        )
     }
     val requestedTargetIndex = remember(requestedScrollIndex, queue) {
         requestedScrollIndex?.takeIf { it in queue.indices }
     }
     val effectiveTargetIndex = requestedTargetIndex ?: currentSongIndex
+    val carouselItemKeys = remember(queue) {
+        buildQueueOccurrenceKeys(queue)
+    }
 
     PrefetchAlbumNeighbors(
         isActive = expansionFraction > 0.08f,
@@ -156,7 +158,7 @@ fun AlbumCarouselSection(
             suppressNoPeekSettleCorrection = requestedTargetIndex != null || programmaticScrollInProgress,
             carouselStyle = if (carouselState.pagerState.pageCount == 1) CarouselStyle.NO_PEEK else carouselStyle, // Handle single-item case
             carouselWidth = availableWidth, // Pass the full width for layout calculations
-            itemKey = { index -> queue.getOrNull(index)?.id ?: index },
+            itemKey = { index -> carouselItemKeys.getOrNull(index) ?: "queue_item_$index" },
             content = { index ->
                 val song = queue[index]
                 val isFocusedItem = carouselState.pagerState.currentPage == index
@@ -183,5 +185,30 @@ fun AlbumCarouselSection(
                 }
             }
         )
+    }
+}
+
+private fun resolveCurrentQueueIndex(
+    currentSong: Song?,
+    currentMediaItemIndex: Int,
+    queue: ImmutableList<Song>
+): Int {
+    val songId = currentSong?.id ?: return 0
+    if (currentMediaItemIndex in queue.indices && queue[currentMediaItemIndex].id == songId) {
+        return currentMediaItemIndex
+    }
+    return queue.indexOfFirst { it.id == songId }
+        .takeIf { it >= 0 }
+        ?: queue.indexOf(currentSong)
+            .takeIf { it >= 0 }
+        ?: 0
+}
+
+private fun buildQueueOccurrenceKeys(queue: ImmutableList<Song>): List<String> {
+    val occurrencesBySongId = HashMap<String, Int>()
+    return queue.mapIndexed { index, song ->
+        val occurrence = occurrencesBySongId.getOrDefault(song.id, 0)
+        occurrencesBySongId[song.id] = occurrence + 1
+        "queue_carousel_${song.id}_${occurrence}_${song.albumArtUriString.orEmpty().hashCode()}_$index"
     }
 }

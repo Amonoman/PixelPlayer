@@ -1,6 +1,5 @@
 package com.theveloper.pixelplay.presentation.viewmodel
 
-import android.util.Log
 import com.theveloper.pixelplay.data.model.SearchFilterType
 import com.theveloper.pixelplay.data.model.SearchHistoryItem
 import com.theveloper.pixelplay.data.model.SearchResultItem
@@ -45,7 +44,7 @@ class SearchStateHolder @Inject constructor(
 
     private data class SearchRequest(
         val query: String,
-        val requestId: Long
+        val requestId: Long,
     )
 
     // Search State

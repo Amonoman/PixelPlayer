@@ -29,6 +29,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LargeExtendedFloatingActionButton
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
@@ -227,7 +228,7 @@ fun HomeScreen(
     val scope = rememberCoroutineScope()
     LocalContext.current
 
-    val weeklyStats by statsViewModel.weeklyOverview.collectAsStateWithLifecycle()
+    val homeStatsOverview by statsViewModel.homeOverview.collectAsStateWithLifecycle()
 
     val listState = rememberLazyListState()
     val density = LocalDensity.current
@@ -280,16 +281,22 @@ fun HomeScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
-                // Your Mix
-                item(
-                    key = "your_mix_header",
-                    contentType = "your_mix_header"
-                ) {
-                    YourMixHeader(
-                        song = yourMixSong,
-                        isShuffleEnabled = isShuffleEnabled,
-                        onPlayShuffled = {
-                            if (yourMixSongs.isNotEmpty()) {
+                if (yourMixSongs.isEmpty()) {
+                    item(
+                        key = "your_mix_loading_placeholder",
+                        contentType = "your_mix_loading_placeholder"
+                    ) {
+                        YourMixLoadingPlaceholder()
+                    }
+                } else {
+                    item(
+                        key = "your_mix_header",
+                        contentType = "your_mix_header"
+                    ) {
+                        YourMixHeader(
+                            song = yourMixSong,
+                            isShuffleEnabled = isShuffleEnabled,
+                            onPlayShuffled = {
                                 if (usesFallbackHomeMix) {
                                     playerViewModel.shuffleAllSongs(queueName = "Your Mix")
                                 } else {
@@ -300,8 +307,8 @@ fun HomeScreen(
                                     )
                                 }
                             }
-                        }
-                    )
+                        )
+                    }
                 }
 
                 // Collage
@@ -399,14 +406,16 @@ fun HomeScreen(
                     }
                 }
 
-                item(
-                    key = "listening_stats_preview",
-                    contentType = "listening_stats_preview"
-                ) {
-                    StatsOverviewCard(
-                        summary = weeklyStats,
-                        onClick = { navController.navigateSafely(Screen.Stats.route) }
-                    )
+                if (homeStatsOverview != null) {
+                    item(
+                        key = "listening_stats_preview",
+                        contentType = "listening_stats_preview"
+                    ) {
+                        StatsOverviewCard(
+                            summary = homeStatsOverview,
+                            onClick = { navController.navigateSafely(Screen.Stats.route) }
+                        )
+                    }
                 }
             }
         }
@@ -498,6 +507,23 @@ fun HomeScreen(
                     settingsViewModel.setBeta05CleanInstallDisclaimerDismissed(true)
                 }
             }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun YourMixLoadingPlaceholder() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(256.dp)
+            .padding(16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        LoadingIndicator(
+            modifier = Modifier.size(128.dp),
+            color = MaterialTheme.colorScheme.primary
         )
     }
 }
