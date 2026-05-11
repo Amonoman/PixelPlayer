@@ -76,7 +76,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.preferences.CollagePattern
-import com.theveloper.pixelplay.data.stats.PlaybackStatsRepository
 import com.theveloper.pixelplay.presentation.components.AlbumArtCollage
 import com.theveloper.pixelplay.presentation.components.BetaInfoBottomSheet
 import com.theveloper.pixelplay.presentation.components.Beta05CleanInstallDisclaimerDialog
@@ -229,7 +228,7 @@ fun HomeScreen(
     val scope = rememberCoroutineScope()
     LocalContext.current
 
-    val weeklyStats by statsViewModel.weeklyOverview.collectAsStateWithLifecycle()
+    val homeStatsOverview by statsViewModel.homeOverview.collectAsStateWithLifecycle()
 
     val listState = rememberLazyListState()
     val density = LocalDensity.current
@@ -407,13 +406,13 @@ fun HomeScreen(
                     }
                 }
 
-                if (weeklyStats.hasListeningActivity()) {
+                if (homeStatsOverview != null) {
                     item(
                         key = "listening_stats_preview",
                         contentType = "listening_stats_preview"
                     ) {
                         StatsOverviewCard(
-                            summary = weeklyStats,
+                            summary = homeStatsOverview,
                             onClick = { navController.navigateSafely(Screen.Stats.route) }
                         )
                     }
@@ -725,13 +724,4 @@ private fun rememberYourMixTitleStyle(): TextStyle {
             lineHeight = 62.sp
         )
     }
-}
-
-private fun PlaybackStatsRepository.PlaybackStatsSummary?.hasListeningActivity(): Boolean {
-    val summary = this ?: return false
-    return summary.totalDurationMs > 0L ||
-        summary.totalPlayCount > 0 ||
-        summary.uniqueSongs > 0 ||
-        summary.activeDays > 0 ||
-        summary.totalSessions > 0
 }
