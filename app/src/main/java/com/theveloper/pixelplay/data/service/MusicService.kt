@@ -876,7 +876,8 @@ class MusicService : MediaLibraryService() {
     }
 
     private fun createSleepTimerPendingIntent(): PendingIntent {
-        val intent = Intent(this, SleepTimerReceiver::class.java).apply {
+        val intent = Intent(ACTION_SLEEP_TIMER_EXPIRED).apply {
+            component = ComponentName(this@MusicService, SleepTimerReceiver::class.java)
             setPackage(packageName)
         }
         return PendingIntent.getBroadcast(
