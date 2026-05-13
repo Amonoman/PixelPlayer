@@ -263,6 +263,40 @@ fun HomeScreen(
         derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > scrollThresholdPx }
     }
 
+    // Persist the scroll position across navigation away/back. The Stats card and other
+    // conditional sections can shift indices while data re-emits when returning, which
+    // would otherwise leave the list scrolled to the wrong place or jump to the top.
+    var savedScrollIndex by rememberSaveable { mutableIntStateOf(0) }
+    var savedScrollOffset by rememberSaveable { mutableIntStateOf(0) }
+    var needsScrollRestore by rememberSaveable { mutableStateOf(false) }
+
+    DisposableEffect(lifecycleOwner, listState) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE) {
+                savedScrollIndex = listState.firstVisibleItemIndex
+                savedScrollOffset = listState.firstVisibleItemScrollOffset
+                needsScrollRestore = true
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(
+        needsScrollRestore,
+        yourMixSongs.isNotEmpty(),
+        dailyMixSongs.isNotEmpty(),
+        recentlyPlayedSongs.size,
+        homeStatsOverview
+    ) {
+        if (!needsScrollRestore) return@LaunchedEffect
+        val totalItems = listState.layoutInfo.totalItemsCount
+        if (totalItems == 0) return@LaunchedEffect
+        val targetIndex = savedScrollIndex.coerceIn(0, (totalItems - 1).coerceAtLeast(0))
+        listState.scrollToItem(targetIndex, savedScrollOffset)
+        needsScrollRestore = false
+    }
+
     // Drawer state for sidebar
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val shouldShowCleanInstallDisclaimer =

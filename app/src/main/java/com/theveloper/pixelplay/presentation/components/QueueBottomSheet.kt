@@ -175,6 +175,7 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.MyLocation
 import androidx.compose.material3.Button
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -303,6 +304,7 @@ fun QueueBottomSheet(
     }
 
     val listState = rememberLazyListState()
+    val queueCoroutineScope = rememberCoroutineScope()
     val displaySongCount = displaySongs.size
 
     // Local order used only while previewing a drag reorder.
@@ -979,6 +981,25 @@ fun QueueBottomSheet(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
+                            if (currentSongDisplayIndex >= 0 && currentSongDisplayIndex < displaySongCount) {
+                                QueueToolbarMenuButton(
+                                    text = stringResource(R.string.presentation_batch_e_action_locate_current_song),
+                                    icon = Icons.Rounded.MyLocation,
+                                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    onClick = {
+                                        isFabExpanded = false
+                                        queueCoroutineScope.launch {
+                                            val firstVisible = listState.firstVisibleItemIndex
+                                            if (Math.abs(currentSongDisplayIndex - firstVisible) > 20) {
+                                                listState.scrollToItem(currentSongDisplayIndex)
+                                            } else {
+                                                listState.animateScrollToItem(currentSongDisplayIndex)
+                                            }
+                                        }
+                                    }
+                                )
+                            }
                             QueueToolbarMenuButton(
                                 text = stringResource(R.string.presentation_batch_e_action_clear_queue),
                                 icon = Icons.Filled.ClearAll,
