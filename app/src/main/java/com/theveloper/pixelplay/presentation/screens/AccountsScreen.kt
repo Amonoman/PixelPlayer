@@ -405,10 +405,10 @@ private fun ConnectedAccountCard(
     Column(modifier = Modifier.weight(1f)) {
         Text(
             text = account.title,
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis
         )
         Text(
