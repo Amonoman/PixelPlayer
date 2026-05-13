@@ -843,28 +843,30 @@ private fun CastDevicesTabContent(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(bottom = 20.dp)
     ) {
-        item(key = "deviceSectionHeader") {
-            DeviceSectionHeader(
-                modifier = Modifier.fillMaxWidth(),
-                hasDevices = state.devices.isNotEmpty(),
-                    onRefresh = onRefresh
-            )
-        }
-
-        item(key = "refreshIndicator") {
-            AnimatedVisibility(
-                visible = state.isRefreshing,
-                enter = fadeIn(animationSpec = tween(200, easing = FastOutSlowInEasing)),
-                exit = fadeOut(animationSpec = tween(180)),
-                label = "refreshIndicator"
-            ) {
-                LinearProgressIndicator(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(18.dp)),
-                    color = colors.primary,
-                    trackColor = colors.primary.copy(alpha = 0.12f)
+        if (!allConnectivityOff) {
+            item(key = "deviceSectionHeader") {
+                DeviceSectionHeader(
+                    modifier = Modifier.fillMaxWidth(),
+                    hasDevices = state.devices.isNotEmpty(),
+                        onRefresh = onRefresh
                 )
+            }
+
+            item(key = "refreshIndicator") {
+                AnimatedVisibility(
+                    visible = state.isRefreshing,
+                    enter = fadeIn(animationSpec = tween(200, easing = FastOutSlowInEasing)),
+                    exit = fadeOut(animationSpec = tween(180)),
+                    label = "refreshIndicator"
+                ) {
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(18.dp)),
+                        color = colors.primary,
+                        trackColor = colors.primary.copy(alpha = 0.12f)
+                    )
+                }
             }
         }
 

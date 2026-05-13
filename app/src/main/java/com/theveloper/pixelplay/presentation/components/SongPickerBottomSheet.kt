@@ -21,8 +21,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -160,7 +164,9 @@ fun SongPickerSelectionPane(
     playerViewModel: PlayerViewModel = hiltViewModel()
 ) {
     var searchQuery by remember { mutableStateOf("") }
+    var favoritesOnly by remember { mutableStateOf(false) }
     val pagedSongs = playerViewModel.playlistPickerSongs.collectAsLazyPagingItems()
+    val favoriteIds by playerViewModel.favoriteSongIds.collectAsStateWithLifecycle()
     val searchResultsInitialValue: List<Song>? = remember(searchQuery) {
         if (searchQuery.isBlank()) emptyList() else null
     }
@@ -191,23 +197,63 @@ fun SongPickerSelectionPane(
             onSearchQueryChange = { searchQuery = it }
         )
 
-        if (searchQuery.isBlank()) {
-            SongPickerPagingList(
-                pagedSongs = pagedSongs,
-                selectedSongIds = selectedSongIds,
-                albumShape = albumShape,
-                modifier = Modifier.weight(1f),
-                contentPadding = contentPadding
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            FilterChip(
+                selected = favoritesOnly,
+                onClick = { favoritesOnly = !favoritesOnly },
+                label = { Text(stringResource(R.string.song_picker_filter_favorites)) },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Rounded.Favorite,
+                        contentDescription = null,
+                        modifier = Modifier.size(FilterChipDefaults.IconSize)
+                    )
+                }
             )
-        } else {
-            SongPickerList(
-                filteredSongs = searchResults ?: emptyList(),
-                isLoading = searchResults == null,
-                selectedSongIds = selectedSongIds,
-                albumShape = albumShape,
-                modifier = Modifier.weight(1f),
-                contentPadding = contentPadding
-            )
+        }
+
+        when {
+            searchQuery.isNotBlank() -> {
+                val displayed = (searchResults ?: emptyList()).let { results ->
+                    if (favoritesOnly) results.filter { it.id in favoriteIds } else results
+                }
+                SongPickerList(
+                    filteredSongs = displayed,
+                    isLoading = searchResults == null,
+                    selectedSongIds = selectedSongIds,
+                    albumShape = albumShape,
+                    modifier = Modifier.weight(1f),
+                    contentPadding = contentPadding
+                )
+            }
+            favoritesOnly -> {
+                val favoriteSongs = remember(pagedSongs.itemSnapshotList.items, favoriteIds) {
+                    pagedSongs.itemSnapshotList.items.filter { it.id in favoriteIds }
+                }
+                SongPickerList(
+                    filteredSongs = favoriteSongs,
+                    isLoading = pagedSongs.loadState.refresh is LoadState.Loading && pagedSongs.itemCount == 0,
+                    selectedSongIds = selectedSongIds,
+                    albumShape = albumShape,
+                    modifier = Modifier.weight(1f),
+                    contentPadding = contentPadding
+                )
+            }
+            else -> {
+                SongPickerPagingList(
+                    pagedSongs = pagedSongs,
+                    selectedSongIds = selectedSongIds,
+                    albumShape = albumShape,
+                    modifier = Modifier.weight(1f),
+                    contentPadding = contentPadding
+                )
+            }
         }
     }
 }
@@ -237,6 +283,9 @@ private fun SongPickerSearchField(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         shape = CircleShape,
         singleLine = true,
+        leadingIcon = {
+            Icon(Icons.Rounded.Search, contentDescription = null)
+        },
         trailingIcon = {
             if (searchQuery.isNotEmpty()) {
                 IconButton(onClick = { onSearchQueryChange("") }) {
