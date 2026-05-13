@@ -71,19 +71,18 @@ class SleepTimerStateHolder @Inject constructor(
     private var currentSongIdProvider: (() -> StateFlow<String?>)? = null
     private var songTitleResolver: ((String?) -> String)? = null
 
-    private fun sleepTimerIntent(): Intent =
-        Intent(context, SleepTimerReceiver::class.java).apply {
+    private fun sleepTimerPendingIntent(): PendingIntent {
+        val intent = Intent(context, SleepTimerReceiver::class.java).apply {
             action = SLEEP_TIMER_ACTION
             setPackage(context.packageName)
         }
-
-    private fun sleepTimerPendingIntent(): PendingIntent =
-        PendingIntent.getBroadcast(
+        return PendingIntent.getBroadcast(
             context,
             0,
-            sleepTimerIntent(),
+            intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+    }
 
     /**
      * Initialize with dependencies from ViewModel.
