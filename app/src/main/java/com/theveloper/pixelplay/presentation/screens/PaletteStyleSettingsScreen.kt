@@ -539,6 +539,7 @@ private fun MiniFullPlayerSkeletonPreview(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PaletteSwatchSquare(
     scheme: ColorScheme,
@@ -549,8 +550,6 @@ private fun PaletteSwatchSquare(
     BoxWithConstraints(
         modifier = modifier
             .aspectRatio(1f)
-            .clickable(onClick = onClick)
-            .clip(RoundedCornerShape(12.dp))
     ) {
         val circleRadius = maxWidth / 2
         val innerCorner by animateDpAsState(
@@ -571,10 +570,11 @@ private fun PaletteSwatchSquare(
         )
 
         Surface(
+            onClick = onClick,
             color = scheme.surfaceContainerHighest,
             shape = RoundedCornerShape(outerCorner),
             border = if (borderWidth > 0.dp) BorderStroke(borderWidth, scheme.primary) else null,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize() 
         ) {
             Box(
                 modifier = Modifier
