@@ -2,7 +2,6 @@ package com.theveloper.pixelplay.presentation.viewmodel
 
 import android.app.AlarmManager
 import android.app.PendingIntent
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -73,8 +72,8 @@ class SleepTimerStateHolder @Inject constructor(
     private var songTitleResolver: ((String?) -> String)? = null
 
     private fun sleepTimerIntent(): Intent =
-        Intent(SLEEP_TIMER_ACTION).apply {
-            component = ComponentName(context, SleepTimerReceiver::class.java)
+        Intent(context, SleepTimerReceiver::class.java).apply {
+            action = SLEEP_TIMER_ACTION
             setPackage(context.packageName)
         }
 
