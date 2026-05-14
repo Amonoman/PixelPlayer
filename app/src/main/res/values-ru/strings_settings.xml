@@ -53,7 +53,7 @@
     <string name="toast_library_sync_finished">Синхронизация фонотеки завершена</string>
     <string name="toast_full_rescan_started">Полное сканирование запущено…</string>
     <string name="setcat_auto_scan_lrc_title">Автосканирование .lrc файлов</string>
-    <string name="setcat_auto_scan_lrc_subtitle">Автоматически искать и задавать .lrc файлы в той же папке при синхронизации.</string>
+    <string name="setcat_auto_scan_lrc_subtitle">Автоматически искать и назначать .lrc файлы в той же папке при синхронизации.</string>
     <string name="setcat_lyrics_management">Управление текстами песен</string>
     <string name="setcat_lyrics_source_priority_label">Приоритет источников текстов</string>
     <string name="setcat_lyrics_source_priority_desc">Выберите, какой источник пробовать первым при получении текста.</string>
@@ -257,11 +257,11 @@
     <string name="dialog_reset_lyrics_title">Сбросить импортированные тексты?</string>
     <string name="dialog_cannot_undo">Это действие нельзя отменить.</string>
     <string name="confirm">Подтвердить</string>
-    <string name="dialog_rebuild_database_title">Переделать базу данных?</string>
-    <string name="dialog_rebuild_database_message">Это полностью переделает вашу фонотеку с нуля. Все импортированные тексты, избранное и метаданные будут потеряны. Это действие нельзя отменить.</string>
-    <string name="rebuild">Переделать</string>
-    <string name="sync_indicator_rebuilding">Переделка базы данных</string>
-    <string name="toast_rebuilding_database">Переделка базы данных…</string>
+    <string name="dialog_rebuild_database_title">Пересобрать базу данных?</string>
+    <string name="dialog_rebuild_database_message">Это полностью пересоберёт вашу фонотеку с нуля. Все импортированные тексты, избранное и метаданные будут потеряны. Это действие нельзя отменить.</string>
+    <string name="rebuild">Пересобрать</string>
+    <string name="sync_indicator_rebuilding">Пересборка базы данных</string>
+    <string name="toast_rebuilding_database">Пересборка базы данных…</string>
     <string name="dialog_regenerate_daily_mix_title">Обновить Daily Mix?</string>
     <string name="dialog_regenerate_daily_mix_body">Это удалит текущий микс и создаст новый на основе недавних прослушиваний.</string>
     <string name="toast_daily_mix_regeneration_started">Обновление Daily Mix запущено</string>
