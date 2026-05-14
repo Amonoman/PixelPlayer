@@ -26,7 +26,7 @@ import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -290,10 +290,8 @@ private fun LoadingContent() {
         modifier = Modifier.padding(vertical = 48.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        CircularProgressIndicator(
-            modifier = Modifier.size(56.dp),
-            strokeWidth = 4.dp,
-            strokeCap = StrokeCap.Round
+        CircularWavyProgressIndicator(
+            modifier = Modifier.size(56.dp)
         )
         Spacer(modifier = Modifier.height(24.dp))
         Text(

@@ -238,7 +238,7 @@ fun SearchScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 24.dp, top = statusBarTopInset, end = 24.dp),
+                    .padding(start = 24.dp, top = statusBarTopInset + 12.dp, end = 24.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -477,6 +477,13 @@ fun SearchScreen(
                 onNavigateToArtist = {
                     navController.navigateSafelyReplacing(
                         route = Screen.ArtistDetail.createRoute(currentSong.artistId),
+                        patternToPop = Screen.ArtistDetail.route
+                    )
+                    showSongInfoBottomSheet = false
+                },
+                onNavigateToArtistById = { artistId ->
+                    navController.navigateSafelyReplacing(
+                        route = Screen.ArtistDetail.createRoute(artistId),
                         patternToPop = Screen.ArtistDetail.route
                     )
                     showSongInfoBottomSheet = false
