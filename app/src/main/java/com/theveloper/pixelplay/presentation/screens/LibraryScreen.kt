@@ -2779,7 +2779,7 @@ private fun LibraryTabId.iconRes(): Int = when (this) {
     LibraryTabId.ARTISTS -> R.drawable.rounded_artist_24
     LibraryTabId.PLAYLISTS -> R.drawable.rounded_playlist_play_24
     LibraryTabId.FOLDERS -> R.drawable.rounded_folder_24
-    LibraryTabId.LIKED -> R.drawable.rounded_favorite_24
+    LibraryTabId.LIKED -> R.drawable.round_favorite_24
 }
 
 private fun LibraryTabId.displayTitle(): String =
