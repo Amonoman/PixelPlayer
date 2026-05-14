@@ -810,14 +810,6 @@ private fun CastControlsTabContent(
                 onBluetoothClick = onOpenBluetoothSettings
             )
         }
-
-        if (allConnectivityOff) {
-            WifiOffIllustration(
-                onTurnOnWifi = onTurnOnWifi,
-                onOpenBluetoothSettings = onOpenBluetoothSettings
-            )
-        }
-
         Spacer(modifier = Modifier.height(bottomSpacing))
     }
 }
