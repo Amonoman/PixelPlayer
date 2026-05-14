@@ -1011,6 +1011,7 @@ interface MusicDao {
             albums.title AS title,
             albums.artist_name AS artist_name,
             albums.artist_id AS artist_id,
+            albums.album_artist AS album_artist,
             albums.album_art_uri_string AS album_art_uri_string,
             COUNT(songs.id) AS song_count,
             albums.date_added AS date_added,
@@ -1034,6 +1035,7 @@ interface MusicDao {
             albums.title,
             albums.artist_name,
             albums.artist_id,
+            albums.album_artist,
             albums.album_art_uri_string,
             albums.date_added,
             albums.year
@@ -1053,6 +1055,7 @@ interface MusicDao {
             albums.title AS title,
             albums.artist_name AS artist_name,
             albums.artist_id AS artist_id,
+            albums.album_artist AS album_artist,
             albums.album_art_uri_string AS album_art_uri_string,
             COUNT(songs.id) AS song_count,
             albums.date_added AS date_added,
@@ -1076,6 +1079,7 @@ interface MusicDao {
             albums.title,
             albums.artist_name,
             albums.artist_id,
+            albums.album_artist,
             albums.album_art_uri_string,
             albums.date_added,
             albums.year
@@ -1108,6 +1112,7 @@ interface MusicDao {
             albums.title AS title,
             albums.artist_name AS artist_name,
             albums.artist_id AS artist_id,
+            albums.album_artist AS album_artist,
             albums.album_art_uri_string AS album_art_uri_string,
             COUNT(songs.id) AS song_count,
             albums.date_added AS date_added,
@@ -1131,6 +1136,7 @@ interface MusicDao {
             albums.title,
             albums.artist_name,
             albums.artist_id,
+            albums.album_artist,
             albums.album_art_uri_string,
             albums.date_added,
             albums.year
@@ -1166,6 +1172,7 @@ interface MusicDao {
             albums.title AS title,
             albums.artist_name AS artist_name,
             albums.artist_id AS artist_id,
+            albums.album_artist AS album_artist,
             albums.album_art_uri_string AS album_art_uri_string,
             (
                 SELECT COUNT(*)
@@ -1186,6 +1193,7 @@ interface MusicDao {
             albums.title AS title,
             albums.artist_name AS artist_name,
             albums.artist_id AS artist_id,
+            albums.album_artist AS album_artist,
             albums.album_art_uri_string AS album_art_uri_string,
             (
                 SELECT COUNT(*)
@@ -1211,6 +1219,7 @@ interface MusicDao {
             albums.title AS title,
             albums.artist_name AS artist_name,
             albums.artist_id AS artist_id,
+            albums.album_artist AS album_artist,
             albums.album_art_uri_string AS album_art_uri_string,
             COUNT(songs.id) AS song_count,
             albums.date_added AS date_added,
@@ -1223,6 +1232,7 @@ interface MusicDao {
             albums.title,
             albums.artist_name,
             albums.artist_id,
+            albums.album_artist,
             albums.album_art_uri_string,
             albums.date_added,
             albums.year
@@ -1241,6 +1251,7 @@ interface MusicDao {
             albums.title AS title,
             albums.artist_name AS artist_name,
             albums.artist_id AS artist_id,
+            albums.album_artist AS album_artist,
             albums.album_art_uri_string AS album_art_uri_string,
             COUNT(songs.id) AS song_count,
             albums.date_added AS date_added,
@@ -1253,6 +1264,7 @@ interface MusicDao {
             albums.title,
             albums.artist_name,
             albums.artist_id,
+            albums.album_artist,
             albums.album_art_uri_string,
             albums.date_added,
             albums.year
@@ -1266,6 +1278,7 @@ interface MusicDao {
             albums.title AS title,
             albums.artist_name AS artist_name,
             albums.artist_id AS artist_id,
+            albums.album_artist AS album_artist,
             albums.album_art_uri_string AS album_art_uri_string,
             COUNT(songs.id) AS song_count,
             albums.date_added AS date_added,
@@ -1279,6 +1292,7 @@ interface MusicDao {
             albums.title,
             albums.artist_name,
             albums.artist_id,
+            albums.album_artist,
             albums.album_art_uri_string,
             albums.date_added,
             albums.year
