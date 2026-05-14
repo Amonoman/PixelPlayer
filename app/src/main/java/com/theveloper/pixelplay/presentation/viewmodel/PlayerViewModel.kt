@@ -312,6 +312,9 @@ class PlayerViewModel @Inject constructor(
 
 
 
+    private val _playlistPickerStorageFilter = MutableStateFlow(com.theveloper.pixelplay.data.model.StorageFilter.OFFLINE)
+    val playlistPickerStorageFilter: StateFlow<com.theveloper.pixelplay.data.model.StorageFilter> = _playlistPickerStorageFilter.asStateFlow()
+
     /**
      * Paginated songs for efficient display in LibraryScreen.
      * Uses Paging 3 for memory-efficient loading of large libraries.
@@ -321,11 +324,31 @@ class PlayerViewModel @Inject constructor(
         .cachedIn(viewModelScope)
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val playlistPickerSongs: Flow<PagingData<Song>> = libraryStateHolder.currentSongSortOption
-        .flatMapLatest { sortOption ->
+    val playlistPickerFavoriteSongs: Flow<PagingData<Song>> = combine(
+        libraryStateHolder.currentSongSortOption,
+        _playlistPickerStorageFilter
+    ) { sortOption, storageFilter ->
+        sortOption to storageFilter
+    }
+        .flatMapLatest { (sortOption, storageFilter) ->
+            musicRepository.getPaginatedFavoriteSongs(
+                sortOption = sortOption,
+                storageFilter = storageFilter
+            )
+        }
+        .cachedIn(viewModelScope)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val playlistPickerSongs: Flow<PagingData<Song>> = combine(
+        libraryStateHolder.currentSongSortOption,
+        _playlistPickerStorageFilter
+    ) { sortOption, storageFilter ->
+        sortOption to storageFilter
+    }
+        .flatMapLatest { (sortOption, storageFilter) ->
             musicRepository.getPaginatedSongs(
                 sortOption = sortOption,
-                storageFilter = com.theveloper.pixelplay.data.model.StorageFilter.ALL
+                storageFilter = storageFilter
             )
         }
         .cachedIn(viewModelScope)
@@ -2057,6 +2080,10 @@ class PlayerViewModel @Inject constructor(
         libraryStateHolder.setStorageFilter(filter)
     }
 
+    fun setPlaylistPickerStorageFilter(filter: com.theveloper.pixelplay.data.model.StorageFilter) {
+        _playlistPickerStorageFilter.value = filter
+    }
+
     fun setHideLocalMedia(hide: Boolean) {
         viewModelScope.launch {
             userPreferencesRepository.setHideLocalMedia(hide)
@@ -2078,7 +2105,8 @@ class PlayerViewModel @Inject constructor(
         contextSongs: List<Song>,
         queueName: String = "Current Context",
         isVoluntaryPlay: Boolean = true,
-        cancelPendingQueueBuild: Boolean = true
+        cancelPendingQueueBuild: Boolean = true,
+        playlistId: String? = null
     ) {
         if (cancelPendingQueueBuild) {
             cancelPendingFullQueuePlayback()
@@ -2146,7 +2174,12 @@ class PlayerViewModel @Inject constructor(
                 }
             }
 
-            if (isVoluntaryPlay) incrementSongScore(song)
+            if (isVoluntaryPlay) {
+                incrementSongScore(song)
+                if (playlistId != null && queueName != "None") {
+                    appShortcutManager.updateLastPlaylistShortcut(playlistId, queueName)
+                }
+            }
             return
         }    // Local playback logic
         mediaController?.let { controller ->
@@ -2161,10 +2194,15 @@ class PlayerViewModel @Inject constructor(
                     controller.seekTo(songIndexInQueue, 0L)
                     controller.play()
                 }
-                if (isVoluntaryPlay) incrementSongScore(song)
+                if (isVoluntaryPlay) {
+                    incrementSongScore(song)
+                    if (playlistId != null && queueName != "None") {
+                        appShortcutManager.updateLastPlaylistShortcut(playlistId, queueName)
+                    }
+                }
             } else {
                 if (isVoluntaryPlay) incrementSongScore(song)
-                playSongs(playbackContext, song, queueName, null)
+                playSongs(playbackContext, song, queueName, playlistId)
             }
         }
         resetPredictiveBackState()
