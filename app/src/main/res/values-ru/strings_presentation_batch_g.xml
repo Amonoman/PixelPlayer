@@ -116,10 +116,10 @@
     <string name="device_capabilities_review_title">Проверьте настройки</string>
     <string name="device_capabilities_metric_formats">Форматы</string>
     <string name="device_capabilities_metric_hw_decoders">HW декодеры</string>
-    <string name="device_capabilities_metric_local_music">Местные песни</string>
+    <string name="device_capabilities_metric_local_music">Локальные треки</string>
     <string name="device_capabilities_storage_title">Хранилище музыки</string>
     <string name="device_capabilities_storage_music_size">Размер музыки</string>
-    <string name="device_capabilities_storage_music_count">%1$d местных песен</string>
+    <string name="device_capabilities_storage_music_count">%1$d локальных треков</string>
     <string name="device_capabilities_storage_available">Доступно</string>
     <string name="device_capabilities_storage_total">%1$s всего</string>
     <string name="device_capabilities_storage_music_footprint">Занимаемое место</string>
