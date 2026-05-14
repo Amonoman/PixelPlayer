@@ -209,7 +209,7 @@ class SongInfoBottomSheetViewModel @Inject constructor(
     private fun getCloudProviderLabel(contentUriString: String): String? {
         return when {
             contentUriString.startsWith("telegram://") -> "Telegram"
-            contentUriString.startsWith("netease://") -> "Netease Cloud Music"
+            contentUriString.startsWith("netease://") -> "Netease Music"
             contentUriString.startsWith("qqmusic://") -> "QQ Music"
             contentUriString.startsWith("navidrome://") -> "Navidrome"
             contentUriString.startsWith("gdrive://") -> "Google Drive"
