@@ -330,7 +330,7 @@ fun TelegramDashboardScreen(
             }
             AlertDialog(
                 onDismissRequest = { channelPendingRemoval = null },
-                icon = { Icon(Icons.Rounded.Delete, contentDescription = null) },
+                icon = { Icon(Icons.Rounded.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
                 title = {
                     Text(
                         text = stringResource(R.string.presentation_batch_f_remove_channel_confirm_title),
@@ -343,7 +343,8 @@ fun TelegramDashboardScreen(
                             R.string.presentation_batch_f_remove_channel_confirm_body,
                             channelLabel
                         ),
-                        fontFamily = GoogleSansRounded
+                        fontFamily = GoogleSansRounded,
+                        textAlign = TextAlign.Center
                     )
                 },
                 confirmButton = {
@@ -354,7 +355,8 @@ fun TelegramDashboardScreen(
                         Text(
                             text = stringResource(R.string.presentation_batch_f_remove_channel_confirm_action),
                             fontFamily = GoogleSansRounded,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.error
                         )
                     }
                 },
