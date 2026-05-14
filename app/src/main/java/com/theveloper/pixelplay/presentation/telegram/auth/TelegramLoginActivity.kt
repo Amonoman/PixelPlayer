@@ -83,7 +83,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
@@ -191,17 +190,6 @@ fun TelegramLoginScreen(
         }
     }
 
-    val primaryContainer = MaterialTheme.colorScheme.primaryContainer
-    val surface = MaterialTheme.colorScheme.surface
-    val gradientBrush = remember(primaryContainer, surface) {
-        Brush.verticalGradient(
-            listOf(
-                primaryContainer.copy(alpha = 0.55f),
-                surface
-            )
-        )
-    }
-
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
@@ -242,7 +230,7 @@ fun TelegramLoginScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(gradientBrush)
+                .background(MaterialTheme.colorScheme.surface)
                 .padding(paddingValues)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp, vertical = 20.dp),

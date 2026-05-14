@@ -74,7 +74,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -126,11 +125,6 @@ fun TelegramDashboardScreen(
     val lazyListState = rememberLazyListState()
     val density = LocalDensity.current
     val coroutineScope = rememberCoroutineScope()
-
-    val gradientColors = listOf(
-        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-        Color.Transparent
-    )
 
     LaunchedEffect(statusMessage) {
         statusMessage?.let {
@@ -213,7 +207,6 @@ fun TelegramDashboardScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(gradientColors))
             .nestedScroll(nestedScrollConnection)
     ) {
         Crossfade(targetState = channels.isEmpty(), label = "telegramContentState") { isEmpty ->
@@ -444,14 +437,7 @@ private fun ExpressiveChannelItem(
                     modifier = Modifier
                         .size(62.dp)
                         .clip(imageShape)
-                        .background(
-                            brush = Brush.linearGradient(
-                                colors = listOf(
-                                    MaterialTheme.colorScheme.primary,
-                                    MaterialTheme.colorScheme.tertiary
-                                )
-                            )
-                        ),
+                        .background(MaterialTheme.colorScheme.primary),
                     contentAlignment = Alignment.Center
                 ) {
                     if (!channel.photoPath.isNullOrEmpty()) {
@@ -929,14 +915,7 @@ private fun ExpressiveEmptyState(
             modifier = Modifier
                 .size(120.dp)
                 .clip(CircleShape)
-                .background(
-                    brush = Brush.linearGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.primaryContainer,
-                            MaterialTheme.colorScheme.tertiaryContainer
-                        )
-                    )
-                ),
+                .background(MaterialTheme.colorScheme.primaryContainer),
             contentAlignment = Alignment.Center
         ) {
             Icon(

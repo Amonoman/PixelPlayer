@@ -67,7 +67,6 @@ import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -506,17 +505,7 @@ private fun AboutHeroCard(
         tonalElevation = 2.dp,
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    brush = Brush.linearGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
-                            MaterialTheme.colorScheme.tertiary.copy(alpha = 0.14f),
-                            MaterialTheme.colorScheme.surfaceContainerLow,
-                        ),
-                    ),
-                ),
+            modifier = Modifier.fillMaxWidth(),
         ) {
             Column(
                 modifier = Modifier
