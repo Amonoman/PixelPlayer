@@ -19,6 +19,12 @@ class PixelPlayMediaButtonReceiver : MediaButtonReceiver() {
         MusicService.markPendingMediaButtonForegroundStart()
         try {
             super.onReceive(context, intent)
+        } catch (e: IllegalStateException) {
+            // androidx.media's MediaButtonReceiver only diverts ForegroundServiceStartNotAllowedException;
+            // its sibling BackgroundServiceStartNotAllowedException (thrown when the app is cached)
+            // falls through and rethrows. Nothing actionable here — the click can't be honored.
+            MusicService.unmarkPendingMediaButtonForegroundStart()
+            Timber.tag(TAG).w(e, "Media button start denied while app cached")
         } catch (throwable: Throwable) {
             MusicService.unmarkPendingMediaButtonForegroundStart()
             Timber.tag(TAG).w(throwable, "Media button dispatch failed before MusicService start")

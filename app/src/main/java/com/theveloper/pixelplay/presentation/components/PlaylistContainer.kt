@@ -455,7 +455,7 @@ fun PlaylistItem(
                         Spacer(modifier = Modifier.width(8.dp))
                         Icon(
                             painter = painterResource(R.drawable.netease_cloud_music_logo_icon_206716__1_),
-                            contentDescription = "Netease Cloud Music",
+                            contentDescription = "Netease Music",
                             tint = MaterialTheme.colorScheme.tertiary,
                             modifier = Modifier.size(18.dp)
                         )
