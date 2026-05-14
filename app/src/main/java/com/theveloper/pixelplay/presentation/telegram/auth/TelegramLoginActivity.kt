@@ -58,6 +58,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.VisibilityOff
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -93,6 +96,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -875,6 +879,7 @@ fun ExpressivePasswordInput(
     // Local state so keystrokes don't push through the VM uiState on every char,
     // which would recompose the whole login screen and cause input jank.
     var localPassword by remember { mutableStateOf(password) }
+    var passwordVisible by remember { mutableStateOf(false) }
 
     // Re-sync from VM only when it actively resets the password (e.g. auth state change).
     LaunchedEffect(password) {
@@ -895,7 +900,6 @@ fun ExpressivePasswordInput(
             smoothnessAsPercentBL = 60
         )
     }
-    val passwordTransformation = remember { PasswordVisualTransformation() }
 
     val submitPassword = {
         if (!isLoading && localPassword.isNotBlank()) {
@@ -927,7 +931,15 @@ fun ExpressivePasswordInput(
                     tint = MaterialTheme.colorScheme.primary
                 )
             },
-            visualTransformation = passwordTransformation,
+            trailingIcon = {
+                val image = if (passwordVisible) Icons.Rounded.Visibility else Icons.Rounded.VisibilityOff
+                val description = if (passwordVisible) "Hide password" else "Show password"
+
+                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                    Icon(imageVector = image, contentDescription = description, tint = MaterialTheme.colorScheme.primary)
+                }
+            },
+            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Password,
                 imeAction = ImeAction.Done

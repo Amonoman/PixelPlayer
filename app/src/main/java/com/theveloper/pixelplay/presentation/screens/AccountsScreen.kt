@@ -221,6 +221,10 @@ fun AccountsScreen(
                             painterResource(R.drawable.qq_music)
                         } else if (account.service == ExternalServiceAccount.TELEGRAM) {
                             painterResource(R.drawable.telegram)
+                        } else if (account.service == ExternalServiceAccount.JELLYFIN) {
+                            painterResource(R.drawable.ic_jellyfin)
+                        } else if (account.service == ExternalServiceAccount.NAVIDROME) {
+                            painterResource(R.drawable.ic_navidrome_md3)
                         } else null
                     )
                 }
@@ -554,6 +558,9 @@ private fun EmptyAccountsCard(
                     ExternalServiceAccount.NETEASE -> painterResource(R.drawable.netease_cloud_music_logo_icon_206716__1_)
                     ExternalServiceAccount.QQ_MUSIC -> painterResource(R.drawable.qq_music)
                     ExternalServiceAccount.TELEGRAM -> painterResource(R.drawable.telegram)
+                    ExternalServiceAccount.GOOGLE_DRIVE -> painterResource(R.drawable.rounded_drive_export_24)
+                    ExternalServiceAccount.JELLYFIN -> painterResource(R.drawable.ic_jellyfin)
+                    ExternalServiceAccount.NAVIDROME -> painterResource(R.drawable.ic_navidrome_md3)
                     else -> null
                 }
                 FilledTonalButton(
