@@ -991,6 +991,7 @@ class MusicRepositoryImpl @Inject constructor(
         val allChannels = telegramDao.getAllChannels().first()
         allChannels.forEach { channel ->
             telegramRepository.deleteAppPlaylistForTelegramChannel(channel.chatId)
+            telegramRepository.deleteAllTopicPlaylistsForChannel(channel.chatId)
         }
 
         musicDao.clearAllTelegramSongs()
