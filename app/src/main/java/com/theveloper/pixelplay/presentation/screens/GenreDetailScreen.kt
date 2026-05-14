@@ -512,6 +512,13 @@ fun GenreDetailScreen(
                             )
                             showSongOptionsSheet = null
                         },
+                        onNavigateToArtistById = { artistId ->
+                            navController.navigateSafelyReplacing(
+                                route = com.theveloper.pixelplay.presentation.navigation.Screen.ArtistDetail.createRoute(artistId),
+                                patternToPop = com.theveloper.pixelplay.presentation.navigation.Screen.ArtistDetail.route
+                            )
+                            showSongOptionsSheet = null
+                        },
                         onNavigateToGenre = {
                             song.genre?.let {
                                 navController.navigateSafelyReplacing(

@@ -887,6 +887,13 @@ fun PlaylistDetailScreen(
                     )
                     showSongInfoBottomSheet = false
                 },
+                onNavigateToArtistById = { artistId ->
+                    navController.navigateSafelyReplacing(
+                        route = Screen.ArtistDetail.createRoute(artistId),
+                        patternToPop = Screen.ArtistDetail.route
+                    )
+                    showSongInfoBottomSheet = false
+                },
                 onNavigateToGenre = {
                     currentSong.genre?.let {
                         navController.navigateSafelyReplacing(

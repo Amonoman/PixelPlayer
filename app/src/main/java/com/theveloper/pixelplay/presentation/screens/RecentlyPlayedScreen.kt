@@ -308,6 +308,10 @@ fun RecentlyPlayedScreen(
                     navController.navigateSafely(Screen.ArtistDetail.createRoute(song.artistId))
                     showSongInfoBottomSheet = false
                 },
+                onNavigateToArtistById = { artistId ->
+                    navController.navigateSafely(Screen.ArtistDetail.createRoute(artistId))
+                    showSongInfoBottomSheet = false
+                },
                 onNavigateToGenre = {
                     song.genre?.let {
                         navController.navigateSafely(Screen.GenreDetail.createRoute(java.net.URLEncoder.encode(it, "UTF-8")))

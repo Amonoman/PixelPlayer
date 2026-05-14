@@ -561,6 +561,14 @@ constructor(
                  artistDelimiters = artistDelimiters,
                  wordDelimiters = wordDelimiters
              )
+             val metadataAlbumArtist = songsInAlbum
+                 .mapNotNull { song ->
+                     song.albumArtist?.takeIf { it.isNotBlank() }
+                 }
+                 .groupingBy { it }
+                 .eachCount()
+                 .maxByOrNull { it.value }
+                 ?.key
 
              AlbumEntity(
                  id = catAlbumId,
@@ -570,7 +578,8 @@ constructor(
                  albumArtUriString = representativeAlbumArt,
                  songCount = songsInAlbum.size,
                  dateAdded = firstSong.dateAdded,
-                 year = firstSong.year
+                 year = firstSong.year,
+                 albumArtist = metadataAlbumArtist
              )
         }
 

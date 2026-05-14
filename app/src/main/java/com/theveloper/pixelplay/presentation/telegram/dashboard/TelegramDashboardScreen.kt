@@ -45,6 +45,7 @@ import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.Topic
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -56,6 +57,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MediumExtendedFloatingActionButton
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -117,6 +119,7 @@ fun TelegramDashboardScreen(
     val topicsMap by viewModel.topicsMap.collectAsStateWithLifecycle()
     val expandedChannels by viewModel.expandedChannels.collectAsStateWithLifecycle()
     var selectedChannelForActions by remember { mutableStateOf<TelegramChannelEntity?>(null) }
+    var channelPendingRemoval by remember { mutableStateOf<TelegramChannelEntity?>(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val lazyListState = rememberLazyListState()
@@ -315,8 +318,53 @@ fun TelegramDashboardScreen(
                     viewModel.refreshChannel(selectedChannel)
                 },
                 onDelete = {
+                    channelPendingRemoval = selectedChannel
                     selectedChannelForActions = null
-                    viewModel.removeChannel(selectedChannel.chatId)
+                }
+            )
+        }
+
+        channelPendingRemoval?.let { channel ->
+            val channelLabel = channel.title.ifBlank {
+                channel.username?.let { "@$it" } ?: channel.chatId.toString()
+            }
+            AlertDialog(
+                onDismissRequest = { channelPendingRemoval = null },
+                icon = { Icon(Icons.Rounded.Delete, contentDescription = null) },
+                title = {
+                    Text(
+                        text = stringResource(R.string.presentation_batch_f_remove_channel_confirm_title),
+                        fontFamily = GoogleSansRounded
+                    )
+                },
+                text = {
+                    Text(
+                        text = stringResource(
+                            R.string.presentation_batch_f_remove_channel_confirm_body,
+                            channelLabel
+                        ),
+                        fontFamily = GoogleSansRounded
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        viewModel.removeChannel(channel.chatId)
+                        channelPendingRemoval = null
+                    }) {
+                        Text(
+                            text = stringResource(R.string.presentation_batch_f_remove_channel_confirm_action),
+                            fontFamily = GoogleSansRounded,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { channelPendingRemoval = null }) {
+                        Text(
+                            text = stringResource(R.string.cancel),
+                            fontFamily = GoogleSansRounded
+                        )
+                    }
                 }
             )
         }

@@ -207,6 +207,10 @@ fun DailyMixScreen(
                 navController.navigateSafely(Screen.ArtistDetail.createRoute(song.artistId))
                 showSongInfoSheet = false
             },
+            onNavigateToArtistById = { artistId ->
+                navController.navigateSafely(Screen.ArtistDetail.createRoute(artistId))
+                showSongInfoSheet = false
+            },
             onNavigateToGenre = {
                 song.genre?.let {
                     navController.navigateSafely(Screen.GenreDetail.createRoute(java.net.URLEncoder.encode(it, "UTF-8")))
