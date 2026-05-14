@@ -309,7 +309,7 @@ fun SongPickerSelectionPane(
                 shape = CircleShape,
                 leadingIcon = {
                     Icon(
-                        imageVector = Icons.Rounded.Favorite,
+                        painter = painterResource(R.drawable.round_favorite_24),
                         contentDescription = null,
                         modifier = Modifier.size(FilterChipDefaults.IconSize)
                     )
