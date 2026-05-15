@@ -1340,7 +1340,8 @@ interface MusicDao {
         ORDER BY
             CASE WHEN :sortOrder = 'artist_name_az' THEN artists.name END COLLATE NOCASE ASC,
             CASE WHEN :sortOrder = 'artist_name_za' THEN artists.name END COLLATE NOCASE DESC,
-            CASE WHEN :sortOrder = 'artist_num_songs' THEN track_count END DESC,
+            CASE WHEN :sortOrder = 'artist_num_songs_desc' THEN track_count END DESC,
+            CASE WHEN :sortOrder = 'artist_num_songs_asc' THEN track_count END ASC,
             artists.name COLLATE NOCASE ASC,
             artists.id ASC
     """)
@@ -1373,7 +1374,8 @@ interface MusicDao {
         ORDER BY
             CASE WHEN :sortOrder = 'artist_name_az' THEN artists.name END COLLATE NOCASE ASC,
             CASE WHEN :sortOrder = 'artist_name_za' THEN artists.name END COLLATE NOCASE DESC,
-            CASE WHEN :sortOrder = 'artist_num_songs' THEN track_count END DESC,
+            CASE WHEN :sortOrder = 'artist_num_songs_desc' THEN track_count END DESC,
+            CASE WHEN :sortOrder = 'artist_num_songs_asc' THEN track_count END ASC,
             artists.name COLLATE NOCASE ASC,
             artists.id ASC
         LIMIT :limit OFFSET :offset
