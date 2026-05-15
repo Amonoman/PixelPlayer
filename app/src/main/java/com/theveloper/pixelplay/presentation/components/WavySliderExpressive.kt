@@ -4,6 +4,8 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -24,6 +26,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -35,6 +38,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -98,7 +102,8 @@ fun WavySliderExpressive(
     val resolvedInteractionSource = interactionSource ?: remember { MutableInteractionSource() }
     val isDragged by resolvedInteractionSource.collectIsDraggedAsState()
     val isPressed by resolvedInteractionSource.collectIsPressedAsState()
-    val isInteracting = isDragged || isPressed
+    var isPointerSeeking by remember { mutableStateOf(false) }
+    val isInteracting = isDragged || isPressed || isPointerSeeking
 
     val thumbInteractionFraction by animateFloatAsState(
         targetValue = if (isInteracting) 1f else 0f,
@@ -246,5 +251,55 @@ fun WavySliderExpressive(
                 cornerRadius = CornerRadius(currentWidth / 2f)
             )
         }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(enabled, valueRange, trackEdgePaddingPx) {
+                    if (!enabled) return@pointerInput
+
+                    fun valueForX(rawX: Float): Float {
+                        val edgePadding = trackEdgePaddingPx.coerceIn(0f, size.width / 2f)
+                        val trackStart = edgePadding
+                        val trackEnd = size.width - edgePadding
+                        val trackWidth = (trackEnd - trackStart).coerceAtLeast(1f)
+                        val normalized = ((rawX - trackStart) / trackWidth).coerceIn(0f, 1f)
+                        return valueRange.start +
+                            normalized * (valueRange.endInclusive - valueRange.start)
+                    }
+
+                    awaitEachGesture {
+                        try {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            isPointerSeeking = true
+                            down.consume()
+                            onValueChange(valueForX(down.position.x))
+
+                            var pointerId = down.id
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == pointerId }
+                                    ?: event.changes.firstOrNull { it.pressed }
+                                    ?: break
+
+                                pointerId = change.id
+                                if (!change.pressed) {
+                                    change.consume()
+                                    break
+                                }
+
+                                if (change.position != change.previousPosition) {
+                                    change.consume()
+                                    onValueChange(valueForX(change.position.x))
+                                }
+                            }
+
+                            onValueChangeFinished?.invoke()
+                        } finally {
+                            isPointerSeeking = false
+                        }
+                    }
+                }
+        )
     }
 }
