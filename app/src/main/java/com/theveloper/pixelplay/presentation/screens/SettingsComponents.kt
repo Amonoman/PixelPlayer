@@ -389,14 +389,18 @@ fun SliderSettingsItem(
             ) {
                 Text(
                         text = label,
+                        modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface
                 )
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                         text = valueText(value),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false
                 )
             }
             Slider(
@@ -463,13 +467,19 @@ fun RefreshLibraryItem(
                     enabled = !isSyncing,
                     modifier = Modifier.fillMaxWidth()
             ) {
-                Icon(
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
                         imageVector = Icons.Outlined.Refresh,
                         contentDescription = null,
                         modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(stringResource(R.string.presentation_batch_f_full_rescan))
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(stringResource(R.string.presentation_batch_f_full_rescan))
+                }
             }
              
             Spacer(modifier = Modifier.height(8.dp))
@@ -484,13 +494,19 @@ fun RefreshLibraryItem(
                     ),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f))
             ) {
-                Icon(
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
                         imageVector = Icons.Outlined.DeleteForever,
                         contentDescription = null,
                         modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(stringResource(R.string.presentation_batch_f_rebuild_database))
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(stringResource(R.string.presentation_batch_f_rebuild_database))
+                }
             }
 
             if (isSyncing) {
