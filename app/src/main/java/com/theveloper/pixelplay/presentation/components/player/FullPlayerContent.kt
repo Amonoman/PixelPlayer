@@ -1805,8 +1805,7 @@ private fun PlayerProgressBarSection(
                 EfficientSlider(
                     valueState = animatedProgressState,
                     onValueChange = { sliderDragValue = it },
-                    onValueChangeFinished = {
-                        val finalValue = sliderDragValue ?: animatedProgressState.value
+                    onValueCommit = { finalValue ->
                         val targetMs = (finalValue * durationForCalc).roundToLong()
                         optimisticPosition = targetMs
                         onSeek(targetMs)
@@ -1838,7 +1837,7 @@ private fun PlayerProgressBarSection(
 private fun EfficientSlider(
     valueState: androidx.compose.runtime.State<Float>,
     onValueChange: (Float) -> Unit,
-    onValueChangeFinished: () -> Unit,
+    onValueCommit: (Float) -> Unit,
     thumbColor: Color,
     activeTrackColor: Color,
     inactiveTrackColor: Color,
@@ -1864,7 +1863,7 @@ private fun EfficientSlider(
     WavySliderExpressive(
         value = valueState.value,
         onValueChange = onValueChangeWithHaptics,
-        onValueChangeFinished = onValueChangeFinished,
+        onValueCommit = onValueCommit,
         interactionSource = interactionSource,
         activeTrackColor = activeTrackColor,
         inactiveTrackColor = inactiveTrackColor,
