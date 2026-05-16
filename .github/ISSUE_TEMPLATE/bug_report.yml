@@ -34,14 +34,14 @@ body:
       description: What is your watch model and Wear OS version?
       placeholder: |
         Model: (e.g. Galaxy Watch 4, Pixel Watch)
-        Wear OS Version: (e.g. 3.5, 4.0)
+        OS Version: (e.g. 14, 15, 16, 17 for Android)
     validations:
       required: true
   - type: textarea
     id: logs
     attributes:
       label: Logs / Screenshots
-      description: Please provide relevant logs (use `adb logcat`) or screenshots.
+      description: Please provide relevant logs (use `adb logcat` if experienced), screenshots, or plaintext. We suggest placing plaintext logs between "```txt" (above) and "```" (below).
       placeholder: |
         Add logs or describe the crash/visual issue here.
     validations:
