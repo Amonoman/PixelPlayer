@@ -175,9 +175,10 @@ class DualPlayerEngine @Inject constructor(
                 requestAudioFocus()
             } else {
                 cancelAudioOffloadFallback()
-                if (!isFocusLossPause) {
-                    abandonAudioFocus()
-                }
+                // Keep focus across user pauses so a quick resume doesn't have to re-acquire it.
+                // Focus is abandoned explicitly on AUDIOFOCUS_LOSS and on release(); anything in
+                // between (user pause/play) keeps the request alive to avoid contention races
+                // that occasionally caused press-play to auto-pause after a short wait.
             }
         }
 
@@ -359,14 +360,27 @@ class DualPlayerEngine @Inject constructor(
         val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
             .setAudioAttributes(attributes)
             .setOnAudioFocusChangeListener(focusChangeListener)
+            // Let the system queue our request behind a transient holder instead of failing.
+            // Pairs with the AUDIOFOCUS_GAIN handler below: on DELAYED we pause and mark the
+            // pause as focus-driven so the eventual GAIN callback resumes playback.
+            .setAcceptsDelayedFocusGain(true)
             .build()
 
         val result = audioManager.requestAudioFocus(request)
-        if (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
-            audioFocusRequest = request
-        } else {
-            Timber.tag("TransitionDebug").w("AudioFocus Request Failed: $result")
-            playerA.playWhenReady = false
+        when (result) {
+            AudioManager.AUDIOFOCUS_REQUEST_GRANTED -> {
+                audioFocusRequest = request
+            }
+            AudioManager.AUDIOFOCUS_REQUEST_DELAYED -> {
+                audioFocusRequest = request
+                isFocusLossPause = true
+                playerA.playWhenReady = false
+                if (transitionRunning) playerB.playWhenReady = false
+            }
+            else -> {
+                Timber.tag("TransitionDebug").w("AudioFocus Request Failed: $result")
+                playerA.playWhenReady = false
+            }
         }
     }
 
