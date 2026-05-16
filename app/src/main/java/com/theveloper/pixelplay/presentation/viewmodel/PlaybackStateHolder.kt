@@ -384,6 +384,10 @@ class PlaybackStateHolder @Inject constructor(
             val targetPosition = position.coerceAtLeast(0L)
             val currentMediaId = mediaController?.currentMediaItem?.mediaId
             rememberPausedPositionOverride(currentMediaId, targetPosition)
+            // Mark the seek before dispatching so the engine's HAL-reset heuristic does
+            // not misinterpret the resulting STATE_BUFFERING as an audio HAL underflow and
+            // rebuild the players (which would race with the in-flight seek command).
+            dualPlayerEngine.notifyExternalSeekInitiated()
             mediaController?.seekTo(targetPosition)
         }
     }
