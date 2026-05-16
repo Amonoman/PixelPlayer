@@ -45,6 +45,7 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LargeExtendedFloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -56,6 +57,7 @@ import androidx.compose.material3.TextFieldDefaults
 import com.theveloper.pixelplay.data.model.StorageFilter
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -126,6 +128,16 @@ fun SongPickerContent(
     onConfirm: (Set<String>) -> Unit,
     playerViewModel: PlayerViewModel = hiltViewModel()
 ) {
+    val storageFilter by playerViewModel.playlistPickerStorageFilter.collectAsStateWithLifecycle()
+    val hasCloudSongs by playerViewModel.hasCloudSongsFlow.collectAsStateWithLifecycle()
+    val showCloudFilter = hasCloudSongs != false
+
+    LaunchedEffect(hasCloudSongs, storageFilter) {
+        if (hasCloudSongs == false && storageFilter != StorageFilter.OFFLINE) {
+            playerViewModel.setPlaylistPickerStorageFilter(StorageFilter.OFFLINE)
+        }
+    }
+
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
@@ -144,83 +156,112 @@ fun SongPickerContent(
             }
         },
         bottomBar = {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                val storageFilter by playerViewModel.playlistPickerStorageFilter.collectAsStateWithLifecycle()
-                val tabs = listOf(
-                    StorageFilter.OFFLINE to R.string.library_storage_filter_offline,
-                    StorageFilter.ONLINE to R.string.library_storage_filter_online
-                )
-                val selectedTabIndex = tabs.indexOfFirst { it.first == storageFilter }.coerceAtLeast(0)
-
-                PrimaryTabRow(
-                    selectedTabIndex = selectedTabIndex,
+            if (showCloudFilter) {
+                Row(
                     modifier = Modifier
-                        .weight(1f)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                        .padding(5.dp),
-                    containerColor = Color.Transparent,
-                    divider = {},
-                    indicator = {}
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    tabs.forEachIndexed { index, (filter, labelRes) ->
-                        TabAnimation(
-                            index = index,
-                            title = stringResource(labelRes),
-                            selectedIndex = selectedTabIndex,
-                            onClick = { playerViewModel.setPlaylistPickerStorageFilter(filter) },
-                            transformOrigin = if (index == 0) TransformOrigin(0f, 0.5f) else TransformOrigin(1f, 0.5f)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
+                    val tabs = listOf(
+                        StorageFilter.OFFLINE to R.string.library_storage_filter_offline,
+                        StorageFilter.ONLINE to R.string.library_storage_filter_online
+                    )
+                    val selectedTabIndex = tabs.indexOfFirst { it.first == storageFilter }.coerceAtLeast(0)
+
+                    PrimaryTabRow(
+                        selectedTabIndex = selectedTabIndex,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                            .padding(5.dp),
+                        containerColor = Color.Transparent,
+                        divider = {},
+                        indicator = {}
+                    ) {
+                        tabs.forEachIndexed { index, (filter, labelRes) ->
+                            TabAnimation(
+                                index = index,
+                                title = stringResource(labelRes),
+                                selectedIndex = selectedTabIndex,
+                                onClick = { playerViewModel.setPlaylistPickerStorageFilter(filter) },
+                                transformOrigin = if (index == 0) TransformOrigin(0f, 0.5f) else TransformOrigin(1f, 0.5f)
                             ) {
-                                if (filter == StorageFilter.OFFLINE) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.ic_phonef),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Cloud,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    if (filter == StorageFilter.OFFLINE) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.ic_phonef),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Cloud,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        text = stringResource(labelRes),
+                                        fontFamily = GoogleSansRounded,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(end = 4.dp)
                                     )
                                 }
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    text = stringResource(labelRes),
-                                    fontFamily = GoogleSansRounded,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(end = 4.dp)
-                                )
                             }
                         }
                     }
-                }
 
-                FilledIconButton(
-                    onClick = { onConfirm(selectedSongIds.filterValues { it }.keys) },
-                    modifier = Modifier.size(56.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = IconButtonDefaults.filledIconButtonColors(
+                    FilledIconButton(
+                        onClick = { onConfirm(selectedSongIds.filterValues { it }.keys) },
+                        modifier = Modifier.size(56.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                    ) {
+                        Icon(
+                            Icons.Rounded.Check,
+                            contentDescription = stringResource(R.string.cd_confirm_add_songs),
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 16.dp)
+                ) {
+                    LargeExtendedFloatingActionButton(
+                        onClick = { onConfirm(selectedSongIds.filterValues { it }.keys) },
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                        shape = RoundedCornerShape(20.dp),
                         containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                         contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-                    )
-                ) {
-                    Icon(
-                        Icons.Rounded.Check,
-                        contentDescription = stringResource(R.string.cd_confirm_add_songs),
-                        modifier = Modifier.size(28.dp)
-                    )
+                    ) {
+                        Icon(
+                            Icons.Rounded.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            text = stringResource(R.string.song_picker_action_add),
+                            fontFamily = GoogleSansRounded,
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
                 }
             }
         }
@@ -228,12 +269,14 @@ fun SongPickerContent(
         SongPickerSelectionPane(
             selectedSongIds = selectedSongIds,
             modifier = Modifier.fillMaxSize().padding(top = innerPadding.calculateTopPadding()),
-            contentPadding = PaddingValues(bottom = 120.dp, top = 8.dp),
+            contentPadding = PaddingValues(
+                bottom = if (showCloudFilter) 120.dp else 128.dp,
+                top = 8.dp
+            ),
             playerViewModel = playerViewModel
         )
     }
 }
-
 @OptIn(UnstableApi::class)
 @Composable
 fun SongPickerSelectionPane(

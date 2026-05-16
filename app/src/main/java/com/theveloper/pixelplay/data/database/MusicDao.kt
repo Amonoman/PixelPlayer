@@ -486,6 +486,9 @@ interface MusicDao {
     @Query("SELECT COUNT(*) FROM songs")
     fun getSongCount(): Flow<Int>
 
+    @Query("SELECT COUNT(*) FROM songs WHERE source_type != 0")
+    fun getCloudSongCount(): Flow<Int>
+
     @Query("SELECT COUNT(*) FROM songs")
     suspend fun getSongCountOnce(): Int
 
