@@ -32,7 +32,7 @@ import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.database.NavidromePlaylistEntity
 import com.theveloper.pixelplay.data.model.Song
@@ -187,7 +187,7 @@ private fun DashboardContent(
                         if (isSyncing && syncProgress != null) {
                             Spacer(Modifier.height(12.dp))
                             LinearProgressIndicator(
-                                progress = { syncProgress!! },
+                                progress = { syncProgress },
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(8.dp)
