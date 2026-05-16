@@ -144,7 +144,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.graphics.TransformOrigin
 import com.theveloper.pixelplay.data.model.StorageFilter
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.media3.common.util.UnstableApi
 import androidx.compose.material3.MediumExtendedFloatingActionButton
 import androidx.compose.material3.SliderDefaults

@@ -73,7 +73,7 @@ import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.presentation.components.CollapsibleCommonTopBar
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
@@ -561,7 +561,6 @@ private fun EmptyAccountsCard(
                     ExternalServiceAccount.GOOGLE_DRIVE -> painterResource(R.drawable.rounded_drive_export_24)
                     ExternalServiceAccount.JELLYFIN -> painterResource(R.drawable.ic_jellyfin)
                     ExternalServiceAccount.NAVIDROME -> painterResource(R.drawable.ic_navidrome_md3)
-                    else -> null
                 }
                 FilledTonalButton(
                     onClick = { if (!isComingSoon) onConnect(service) },
@@ -573,18 +572,11 @@ private fun EmptyAccountsCard(
                     ),
                     modifier = Modifier.fillMaxWidth().height(48.dp)
                 ) {
-                    if (painter != null) {
-                        Icon(
-                            painter = painter,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Rounded.Link,
-                            contentDescription = null
-                        )
-                    }
+                    Icon(
+                        painter = painter,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
                     Spacer(modifier = Modifier.size(8.dp))
                     Text(
                         text = if (isComingSoon) {

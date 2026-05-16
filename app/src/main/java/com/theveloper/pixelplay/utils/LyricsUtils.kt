@@ -9,8 +9,12 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.text.ClickableText
+
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.withLink
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -43,7 +47,7 @@ import com.theveloper.pixelplay.data.model.Lyrics
 import com.theveloper.pixelplay.data.model.SyncedLine
 import com.theveloper.pixelplay.data.model.SyncedWord
 import kotlinx.coroutines.flow.Flow
-import java.lang.Character
+
 import java.util.Locale
 import java.util.regex.Pattern
 import kotlin.math.PI
@@ -779,8 +783,8 @@ private fun sanitizeLrcLine(rawLine: String): String {
 
 private fun stripFormatCharacters(value: String): String {
     val cleaned = value.filterNot { char ->
-        Character.getType(char).toByte() == Character.FORMAT ||
-            (Character.isISOControl(char) && char != '\t')
+        char.category == CharCategory.FORMAT ||
+            (char.isISOControl() && char != '\t')
     }
 
     return when (cleaned) {
@@ -804,24 +808,21 @@ fun ProviderText(
         withStyle(style = SpanStyle(color = textColor)) {
             append(providerText)
         }
-        pushStringAnnotation(tag = "URL", annotation = uri)
-        withStyle(style = SpanStyle(color = linkColor)) {
+        withLink(
+            LinkAnnotation.Url(
+                url = uri,
+                styles = TextLinkStyles(style = SpanStyle(color = linkColor))
+            )
+        ) {
             append(" LRCLIB")
         }
-        pop()
     }
 
     val baseStyle = MaterialTheme.typography.bodySmall
     val finalStyle = textAlign?.let { baseStyle.copy(textAlign = it) } ?: baseStyle
-    
-    ClickableText(
+
+    Text(
         text = annotatedString,
-        onClick = { offset ->
-            annotatedString.getStringAnnotations(tag = "URL", start = offset, end = offset)
-                .firstOrNull()?.let { annotation ->
-                    uriHandler.openUri(annotation.item)
-                }
-        },
         style = finalStyle,
         modifier = modifier
     )
@@ -889,7 +890,7 @@ fun BubblesLine(
                     progress in 0f..0.25f -> progress / 0.25f
                     progress in 0.25f..0.5f -> 1.0f - (progress - 0.25f) / 0.25f
                     else -> 0f
-                }.toFloat().coerceIn(0f, 1f)
+                }.coerceIn(0f, 1f)
 
                 // La animación de escalado ahora es más pronunciada.
                 val scale = lerpFloat(1.0f, 1.4f, morphProgress)

@@ -1627,9 +1627,17 @@ fun PlainLyricsLine(
             if (isFirstRomanization) sanitizeLyricLineText(firstExtra) else ""
         } else ""
     }
+    val textAlign = when (lyricsAlignment) {
+        "center" -> TextAlign.Center
+        "right" -> TextAlign.Right
+        else -> TextAlign.Left
+    }
 
-    val textAlign = when (lyricsAlignment) { "center" -> TextAlign.Center; "right" -> TextAlign.Right; else -> TextAlign.Left }
-    val horizontalAlignment = when (lyricsAlignment) { "center" -> Alignment.CenterHorizontally; "right" -> Alignment.End; else -> Alignment.Start }
+    val horizontalAlignment = when (lyricsAlignment) {
+        "center" -> Alignment.CenterHorizontally
+        "right" -> Alignment.End
+        else -> Alignment.Start
+    }
 
     val translationStyle = remember(style) {
         style.copy(

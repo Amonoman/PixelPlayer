@@ -43,7 +43,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Key
-import androidx.compose.material.icons.rounded.PlaylistAdd
+import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -167,7 +167,7 @@ fun PlaylistCreationTypeDialog(
                     subtitle = stringResource(R.string.presentation_batch_e_creation_mode_manual_subtitle),
                     icon = {
                         Icon(
-                            imageVector = Icons.Rounded.PlaylistAdd,
+                            imageVector = Icons.AutoMirrored.Rounded.PlaylistAdd,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onPrimaryContainer
                         )
@@ -920,7 +920,7 @@ private fun ChipsSingleSelect(
                 } else null,
                 label = { 
                     Text(
-                        if (isCustomSelection) selected!! 
+                        if (isCustomSelection) selected
                         else stringResource(R.string.presentation_batch_e_ai_custom_chip)
                     ) 
                 }

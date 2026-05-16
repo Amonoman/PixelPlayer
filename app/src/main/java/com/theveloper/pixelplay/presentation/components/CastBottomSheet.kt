@@ -310,7 +310,7 @@ fun CastBottomSheet(
         val isBluetoothAudio = isBluetoothEnabled && !activeBluetoothName.isNullOrEmpty()
         ActiveDeviceUi(
             id = "phone",
-            title = if (isBluetoothAudio) activeBluetoothName!! else stringResource(R.string.presentation_batch_g_cast_this_phone),
+            title = if (isBluetoothAudio) activeBluetoothName else stringResource(R.string.presentation_batch_g_cast_this_phone),
             subtitle = if (isBluetoothAudio) stringResource(R.string.presentation_batch_g_cast_bluetooth_audio) else stringResource(R.string.presentation_batch_g_cast_local_playback),
             isRemote = false,
             icon = if (isBluetoothAudio) Icons.Rounded.Bluetooth else Icons.Rounded.Headphones,

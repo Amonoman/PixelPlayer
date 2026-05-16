@@ -816,7 +816,7 @@ fun FullPlayerContent(
                                             AnimatedContent(
                                                 targetState = when {
                                                     isCastConnecting -> stringResource(R.string.presentation_batch_g_player_connecting)
-                                                    isRemotePlaybackActive && selectedRouteName != null -> selectedRouteName ?: ""
+                                                    isRemotePlaybackActive && selectedRouteName != null -> selectedRouteName
                                                     else -> ""
                                                 },
                                                 transitionSpec = {

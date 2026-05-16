@@ -663,7 +663,7 @@ class SongMetadataEditor(
                         header[2] == '3'.code.toByte() -> DetectedContainer.MP3
                     // MP3 frame sync (0xFFE... 11-bit sync word)
                     header[0] == 0xFF.toByte() &&
-                        (header[1].toInt() and 0xE0) == 0xE0.toInt() -> DetectedContainer.MP3
+                        (header[1].toInt() and 0xE0) == 0xE0 -> DetectedContainer.MP3
                     // "ftyp" at offset 4 → ISO BMFF (MP4/M4A)
                     bytesRead >= 8 &&
                         header[4] == 'f'.code.toByte() &&
@@ -1027,8 +1027,8 @@ class SongMetadataEditor(
             } catch (e: Exception) {
                 Timber.tag(TAG).w(e, "VORBISJAVA: Could not close source Opus file")
             }
-            if (tempFile?.exists() == true && tempFile?.delete() == false) {
-                Timber.tag(TAG).w("VORBISJAVA: Could not delete temp file ${tempFile?.absolutePath}")
+            if (tempFile != null && tempFile.exists() && tempFile.delete() == false) {
+                Timber.tag(TAG).w("VORBISJAVA: Could not delete temp file ${tempFile.absolutePath}")
             }
         }
     }

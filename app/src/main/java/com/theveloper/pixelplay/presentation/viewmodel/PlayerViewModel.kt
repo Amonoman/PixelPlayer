@@ -405,7 +405,7 @@ class PlayerViewModel @Inject constructor(
             
             // 1. Invalidate Coil cache for the BASE uri (without params)
             // This ensures next time we load it without params, it's fresh too.
-            val baseUri = currentUriClean ?: updatedUriClean
+            val baseUri = currentUriClean
             
             // Remove from Memory Cache
             context.imageLoader.memoryCache?.keys?.forEach { key ->
@@ -3998,7 +3998,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun hasRemoteQueueItems(remoteMediaClient: RemoteMediaClient): Boolean {
-        val mediaQueueCount = remoteMediaClient.mediaQueue?.itemCount ?: 0
+        val mediaQueueCount = remoteMediaClient.mediaQueue.itemCount
         val statusQueueCount = remoteMediaClient.mediaStatus?.queueItems?.size ?: 0
         val snapshotQueueCount = castTransferStateHolder.lastRemoteQueue.size
         return mediaQueueCount > 0 || statusQueueCount > 0 || snapshotQueueCount > 0
