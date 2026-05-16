@@ -1409,7 +1409,7 @@ fun SettingsCategoryScreen(
                         onClick = {},
                         enabled = false
                     ) {
-                        Text(stringResource(R.string.working_ellipsis))
+                        Text(stringResource(R.string.working_ellipsis), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 } else {
                     TextButton(
@@ -1452,7 +1452,7 @@ fun SettingsCategoryScreen(
                     TextButton(
                         onClick = { showRegenerateAllPalettesDialog = false }
                     ) {
-                        Text(stringResource(R.string.cancel))
+                        Text(stringResource(R.string.cancel), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
@@ -1466,8 +1466,8 @@ fun SettingsCategoryScreen(
             title = { Text(stringResource(R.string.dialog_reset_lyrics_title)) },
             text = { Text(stringResource(R.string.dialog_cannot_undo)) },
             onDismissRequest = { showClearLyricsDialog = false },
-            confirmButton = { TextButton(onClick = { showClearLyricsDialog = false; playerViewModel.resetAllLyrics() }) { Text(stringResource(R.string.confirm)) } },
-            dismissButton = { TextButton(onClick = { showClearLyricsDialog = false }) { Text(stringResource(R.string.cancel)) } }
+            confirmButton = { TextButton(onClick = { showClearLyricsDialog = false; playerViewModel.resetAllLyrics() }) { Text(stringResource(R.string.confirm), maxLines = 1, overflow = TextOverflow.Ellipsis) } },
+            dismissButton = { TextButton(onClick = { showClearLyricsDialog = false }) { Text(stringResource(R.string.cancel), maxLines = 1, overflow = TextOverflow.Ellipsis) } }
         )
     }
 
@@ -1493,7 +1493,7 @@ fun SettingsCategoryScreen(
                     Text(stringResource(R.string.rebuild)) 
                 } 
             },
-            dismissButton = { TextButton(onClick = { showRebuildDatabaseWarning = false }) { Text(stringResource(R.string.cancel)) } }
+            dismissButton = { TextButton(onClick = { showRebuildDatabaseWarning = false }) { Text(stringResource(R.string.cancel), maxLines = 1, overflow = TextOverflow.Ellipsis) } }
         )
     }
 
@@ -1511,10 +1511,10 @@ fun SettingsCategoryScreen(
                         Toast.makeText(context, context.getString(R.string.toast_daily_mix_regeneration_started), Toast.LENGTH_SHORT).show()
                     }
                 ) {
-                    Text(stringResource(R.string.dialog_regenerate))
+                    Text(stringResource(R.string.dialog_regenerate), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             },
-            dismissButton = { TextButton(onClick = { showRegenerateDailyMixDialog = false }) { Text(stringResource(R.string.cancel)) } }
+            dismissButton = { TextButton(onClick = { showRegenerateDailyMixDialog = false }) { Text(stringResource(R.string.cancel), maxLines = 1, overflow = TextOverflow.Ellipsis) } }
         )
     }
 
@@ -1532,10 +1532,10 @@ fun SettingsCategoryScreen(
                         Toast.makeText(context, context.getString(R.string.toast_stats_regeneration_started), Toast.LENGTH_SHORT).show()
                     }
                 ) {
-                    Text(stringResource(R.string.dialog_regenerate))
+                    Text(stringResource(R.string.dialog_regenerate), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             },
-            dismissButton = { TextButton(onClick = { showRegenerateStatsDialog = false }) { Text(stringResource(R.string.cancel)) } }
+            dismissButton = { TextButton(onClick = { showRegenerateStatsDialog = false }) { Text(stringResource(R.string.cancel), maxLines = 1, overflow = TextOverflow.Ellipsis) } }
         )
     }
 

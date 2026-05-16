@@ -232,7 +232,7 @@ fun GDriveDashboardScreen(
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(Modifier.width(4.dp))
-                        Text(stringResource(R.string.dash_action_sync), fontFamily = GoogleSansRounded)
+                        Text(stringResource(R.string.dash_action_sync), fontFamily = GoogleSansRounded, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }

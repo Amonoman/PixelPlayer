@@ -113,6 +113,7 @@ import org.drinkless.tdlib.TdApi
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import java.util.Locale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 
 @AndroidEntryPoint
 class TelegramLoginActivity : ComponentActivity() {
@@ -849,10 +850,10 @@ fun ExpressiveCodeInput(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             TextButton(onClick = onEditPhone, enabled = !isLoading) {
-                Text(text = stringResource(R.string.presentation_batch_f_edit_phone), fontFamily = GoogleSansRounded)
+                Text(text = stringResource(R.string.presentation_batch_f_edit_phone), fontFamily = GoogleSansRounded, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             TextButton(onClick = onResendCode, enabled = !isLoading) {
-                Text(text = stringResource(R.string.presentation_batch_f_resend_code), fontFamily = GoogleSansRounded)
+                Text(text = stringResource(R.string.presentation_batch_f_resend_code), fontFamily = GoogleSansRounded, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
 
@@ -964,7 +965,7 @@ fun ExpressivePasswordInput(
             horizontalArrangement = Arrangement.End
         ) {
             TextButton(onClick = onEditPhone, enabled = !isLoading) {
-                Text(text = stringResource(R.string.presentation_batch_f_edit_phone), fontFamily = GoogleSansRounded)
+                Text(text = stringResource(R.string.presentation_batch_f_edit_phone), fontFamily = GoogleSansRounded, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
 

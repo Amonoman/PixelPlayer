@@ -88,6 +88,7 @@ import dev.shreyaspatil.capturable.controller.rememberCaptureController
 import java.io.ByteArrayOutputStream
 import java.util.Locale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 
 private fun formatReplayGainForInput(gainDb: Float?): String {
     return gainDb?.let { String.format(Locale.US, "%.2f", it) }.orEmpty()
@@ -272,7 +273,7 @@ private fun EditSongContent(
             text = { Text(stringResource(R.string.edit_song_info_dialog_body)) },
             confirmButton = {
                 TextButton(onClick = { showInfoDialog = false }) {
-                    Text(stringResource(R.string.edit_song_got_it))
+                    Text(stringResource(R.string.edit_song_got_it), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         )
@@ -621,7 +622,7 @@ private fun EditSongContent(
                                 contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                             )
                         ) {
-                            Text(stringResource(R.string.cancel))
+                            Text(stringResource(R.string.cancel), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         Spacer(
                             modifier = Modifier.width(8.dp)
@@ -774,14 +775,14 @@ private fun CoverArtEditorCard(
                 FilledTonalButton(onClick = onPickNewArt) {
                     Icon(Icons.Rounded.Image, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.edit_song_change_cover_art))
+                    Text(stringResource(R.string.edit_song_change_cover_art), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
 
                 if (preview != null || isDeleted) {
                     TextButton(onClick = onReset) {
                         Icon(Icons.Rounded.Restore, contentDescription = null)
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text(stringResource(R.string.action_reset))
+                        Text(stringResource(R.string.action_reset), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 } else if (albumArtUri != null) {
                     FilledTonalButton(
@@ -793,7 +794,7 @@ private fun CoverArtEditorCard(
                     ) {
                         Icon(Icons.Rounded.Delete, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(stringResource(R.string.edit_song_delete_cover_art))
+                        Text(stringResource(R.string.edit_song_delete_cover_art), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
@@ -990,7 +991,7 @@ private fun CoverArtCropperDialog(
                         enabled = !isSaving,
                         onClick = onDismiss
                     ) {
-                        Text(stringResource(R.string.cancel))
+                        Text(stringResource(R.string.cancel), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
 
                     val canConfirm = !isLoading && loadError == null && loadedBitmap != null

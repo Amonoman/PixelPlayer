@@ -102,6 +102,7 @@ import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import com.theveloper.pixelplay.R
+import androidx.compose.ui.text.style.TextOverflow
 
 @Composable
 fun PlaylistCreationTypeDialog(
@@ -953,7 +954,7 @@ private fun ChipsSingleSelect(
                         customInputValue = ""
                     }
                 ) {
-                    Text(stringResource(R.string.action_save))
+                    Text(stringResource(R.string.action_save), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             },
             dismissButton = {
@@ -961,7 +962,7 @@ private fun ChipsSingleSelect(
                     showCustomDialog = false
                     customInputValue = ""
                 }) {
-                    Text(stringResource(R.string.dismiss))
+                    Text(stringResource(R.string.dismiss), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         )
