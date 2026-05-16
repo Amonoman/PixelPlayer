@@ -192,6 +192,7 @@ import kotlinx.coroutines.flow.map
 import java.util.RandomAccess
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import kotlin.math.abs
 
 private data class QueueUndoBarProjection(
     val isVisible: Boolean = false,
@@ -710,6 +711,18 @@ fun QueueBottomSheet(
                     onPlayPause = { viewModel.playPause() },
                     onNext = { viewModel.nextSong() },
                     colorScheme = albumColorScheme,
+                    onLocateCurrentSong = {
+                        if (currentSongDisplayIndex in 0..<displaySongCount) {
+                            queueCoroutineScope.launch {
+                                val firstVisible = listState.firstVisibleItemIndex
+                                if (abs(currentSongDisplayIndex - firstVisible) > 20) {
+                                    listState.scrollToItem(currentSongDisplayIndex)
+                                } else {
+                                    listState.animateScrollToItem(currentSongDisplayIndex)
+                                }
+                            }
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .then(directSheetDragModifier)
@@ -1130,14 +1143,14 @@ fun QueueBottomSheet(
                             showClearQueueDialog = false
                         }
                     ) {
-                        Text(stringResource(R.string.presentation_batch_b_clear))
+                        Text(stringResource(R.string.presentation_batch_b_clear), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 },
                 dismissButton = {
                     TextButton(
                         onClick = { showClearQueueDialog = false }
                     ) {
-                        Text(stringResource(R.string.cancel))
+                        Text(stringResource(R.string.cancel), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             )
@@ -1204,6 +1217,7 @@ private fun QueueHeaderSection(
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
     colorScheme: ColorScheme? = null,
+    onLocateCurrentSong: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val colors = MaterialTheme.colorScheme
@@ -1232,7 +1246,8 @@ private fun QueueHeaderSection(
             QueueHeader(
                 queueSourceName = queueSourceName,
                 queueCount = queueCount,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                onLocateCurrentSong = onLocateCurrentSong
             )
         }
     }
@@ -1242,7 +1257,8 @@ private fun QueueHeaderSection(
 private fun QueueHeader(
     queueSourceName: String,
     queueCount: Int,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onLocateCurrentSong: () -> Unit = {}
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -1254,6 +1270,12 @@ private fun QueueHeader(
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
+                modifier = Modifier.clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) {
+                    onLocateCurrentSong()
+                },
                 text = stringResource(R.string.presentation_batch_e_next_up),
                 style = MaterialTheme.typography.headlineLarge.copy(
                     fontFamily = GoogleSansRounded,

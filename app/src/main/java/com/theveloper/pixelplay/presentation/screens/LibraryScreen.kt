@@ -375,7 +375,7 @@ private fun WatchTransferProgressDialog(
                         contentColor = MaterialTheme.colorScheme.onError
                     )
                 ) {
-                    Text(text = stringResource(R.string.presentation_batch_d_watch_cancel_transfer))
+                    Text(text = stringResource(R.string.presentation_batch_d_watch_cancel_transfer), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
@@ -2143,7 +2143,7 @@ fun LibraryScreen(
                     pendingMergePlaylistIds = emptyList()
                     mergePlaylistName = ""
                 }) {
-                    Text(stringResource(R.string.cancel))
+                    Text(stringResource(R.string.cancel), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         )

@@ -697,7 +697,7 @@ fun ActionSettingsItem(
                 enabled = enabled,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(primaryActionLabel)
+                Text(primaryActionLabel, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
 
             // Secondary Action (Optional)
@@ -708,7 +708,7 @@ fun ActionSettingsItem(
                     enabled = enabled,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(secondaryActionLabel)
+                    Text(secondaryActionLabel, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
@@ -770,7 +770,7 @@ fun AiApiKeyItem(
                     },
                     enabled = hasChanges
                 ) {
-                    Text(stringResource(R.string.presentation_batch_f_save))
+                    Text(stringResource(R.string.presentation_batch_f_save), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 if (showSaved) {
                     Text(
@@ -879,13 +879,13 @@ fun AiSystemPromptItem(
                     },
                     enabled = hasChanges
                 ) {
-                    Text(stringResource(R.string.presentation_batch_f_save))
+                    Text(stringResource(R.string.presentation_batch_f_save), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 if (!isDefault) {
                     OutlinedButton(onClick = {
                         onReset()
                     }) {
-                        Text(stringResource(R.string.presentation_batch_f_reset))
+                        Text(stringResource(R.string.presentation_batch_f_reset), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
                 if (showSaved) {

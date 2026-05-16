@@ -823,12 +823,12 @@ fun PlaylistDetailScreen(
                         showDeleteConfirmation = false
                     }
                 ) {
-                    Text(stringResource(R.string.delete_action))
+                    Text(stringResource(R.string.delete_action), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirmation = false }) {
-                    Text(stringResource(R.string.cancel))
+                    Text(stringResource(R.string.cancel), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         )
@@ -1062,8 +1062,8 @@ fun RenamePlaylistDialog(currentName: String, onDismiss: () -> Unit, onRename: (
             Button(
                 onClick = { if (newName.text.isNotBlank()) onRename(newName.text) },
                 enabled = newName.text.isNotBlank() && newName.text != currentName
-            ) { Text(renameAction) }
+            ) { Text(renameAction, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), maxLines = 1, overflow = TextOverflow.Ellipsis) } }
     )
 }

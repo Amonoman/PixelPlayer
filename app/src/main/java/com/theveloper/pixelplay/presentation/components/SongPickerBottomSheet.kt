@@ -470,7 +470,7 @@ fun SongPickerPagingList(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Button(onClick = { pagedSongs.retry() }) {
-                        Text(stringResource(R.string.library_retry))
+                        Text(stringResource(R.string.library_retry), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
@@ -532,7 +532,7 @@ fun SongPickerPagingList(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Button(onClick = { pagedSongs.retry() }) {
-                                    Text(stringResource(R.string.song_picker_load_more))
+                                    Text(stringResource(R.string.song_picker_load_more), maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                             }
                         }

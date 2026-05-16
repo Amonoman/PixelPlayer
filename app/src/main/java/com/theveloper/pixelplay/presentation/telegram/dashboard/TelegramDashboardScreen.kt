@@ -957,7 +957,7 @@ private fun ExpressiveEmptyState(
                 modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.size(8.dp))
-            Text(stringResource(R.string.presentation_batch_f_add_channel_button))
+            Text(stringResource(R.string.presentation_batch_f_add_channel_button), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }

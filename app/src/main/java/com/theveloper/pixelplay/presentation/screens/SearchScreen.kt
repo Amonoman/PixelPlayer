@@ -562,7 +562,7 @@ fun SearchHistoryList(
             )
             if (historyItems.isNotEmpty()) {
                 TextButton(onClick = onClearAllHistory) {
-                    Text(stringResource(R.string.clear_all))
+                    Text(stringResource(R.string.clear_all), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }

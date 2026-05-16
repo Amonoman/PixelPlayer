@@ -82,6 +82,7 @@ import kotlinx.coroutines.delay
 import org.json.JSONObject
 import androidx.compose.ui.res.stringResource
 import android.content.Context
+import androidx.compose.ui.text.style.TextOverflow
 
 @AndroidEntryPoint
 class NeteaseLoginActivity : ComponentActivity() {
@@ -216,12 +217,12 @@ fun NeteaseWebLoginScreen(
                         onClose()
                     }
                 ) {
-                    Text(text = stringResource(R.string.auth_exit), fontFamily = GoogleSansRounded)
+                    Text(text = stringResource(R.string.auth_exit), fontFamily = GoogleSansRounded, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showExitDialog = false }) {
-                    Text(text = stringResource(R.string.auth_stay), fontFamily = GoogleSansRounded)
+                    Text(text = stringResource(R.string.auth_stay), fontFamily = GoogleSansRounded, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         )
@@ -433,7 +434,7 @@ fun NeteaseWebLoginScreen(
                                 webView?.reload()
                             }
                         ) {
-                            Text(text = stringResource(R.string.auth_web_retry), fontFamily = GoogleSansRounded)
+                            Text(text = stringResource(R.string.auth_web_retry), fontFamily = GoogleSansRounded, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 }

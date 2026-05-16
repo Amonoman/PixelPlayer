@@ -506,7 +506,7 @@ private fun CastPermissionStep(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(50)
         ) {
-            Text(text = stringResource(R.string.presentation_batch_g_cast_allow_access))
+            Text(text = stringResource(R.string.presentation_batch_g_cast_allow_access), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
 
         if (missingPermissions.isNotEmpty()) {

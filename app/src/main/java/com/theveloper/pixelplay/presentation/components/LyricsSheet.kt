@@ -508,7 +508,7 @@ fun LyricsSheet(
             confirmButton = {},
             dismissButton = {
                 TextButton(onClick = { showSaveLyricsDialog = false }) {
-                    Text(stringResource(R.string.cancel))
+                    Text(stringResource(R.string.cancel), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         )
