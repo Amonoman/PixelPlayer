@@ -278,7 +278,7 @@ fun EditPlaylistDialog(
 }
 
 @OptIn(UnstableApi::class)
-@androidx.compose.runtime.Composable
+@Composable
 private fun CreatePlaylistContent(
     onDismiss: () -> Unit,
     onGenerateClick: () -> Unit,
@@ -1197,27 +1197,27 @@ private fun PlaylistFormContent(
             }
 
             // AI Generation Button - only show in Create mode (not Edit mode)
-            if (onGenerateClick != null) {
-                androidx.compose.material3.FilledTonalButton(
-                    onClick = onGenerateClick,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 22.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-                    )
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.AutoAwesome, // Use built-in icon
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.presentation_batch_f_generate_with_ai), fontWeight = FontWeight.SemiBold)
-                }
-            }
+//            if (onGenerateClick != null) {
+//                androidx.compose.material3.FilledTonalButton(
+//                    onClick = onGenerateClick,
+//                    modifier = Modifier
+//                        .fillMaxWidth()
+//                        .padding(horizontal = 22.dp),
+//                    shape = RoundedCornerShape(14.dp),
+//                    colors = ButtonDefaults.filledTonalButtonColors(
+//                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+//                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+//                    )
+//                ) {
+//                    Icon(
+//                        imageVector = Icons.Rounded.AutoAwesome, // Use built-in icon
+//                        contentDescription = null,
+//                        modifier = Modifier.size(18.dp)
+//                    )
+//                    Spacer(modifier = Modifier.width(8.dp))
+//                    Text(stringResource(R.string.presentation_batch_f_generate_with_ai), fontWeight = FontWeight.SemiBold)
+//                }
+//            }
 
             AnimatedVisibility(visible = creationMode == PlaylistCreationMode.SMART) {
                 Column(
