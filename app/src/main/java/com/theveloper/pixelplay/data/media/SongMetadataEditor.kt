@@ -458,6 +458,7 @@ class SongMetadataEditor(
                     title = newTitle,
                     artist = newArtist,
                     album = newAlbum,
+                    albumArtist = newAlbumArtist,
                     genre = trimmedGenre,
                     trackNumber = newTrackNumber,
                     discNumber = newDiscNumber
@@ -789,7 +790,9 @@ class SongMetadataEditor(
                 propertyMap["TITLE"] = arrayOf(newTitle)
                 propertyMap["ARTIST"] = arrayOf(newArtist)
                 propertyMap["ALBUM"] = arrayOf(newAlbum)
-                propertyMap.upsertOrRemove("ALBUMARTIST", newAlbumArtist?.takeIf { it.isNotBlank() } ?: newArtist)
+                if (!newAlbumArtist.isNullOrBlank()) {
+                    propertyMap["ALBUMARTIST"] = arrayOf(newAlbumArtist)
+                }
                 propertyMap.upsertOrRemove("COMPOSER", newComposer)
                 propertyMap.upsertOrRemove("GENRE", newGenre)
                 propertyMap.upsertOrRemove("LYRICS", newLyrics)
@@ -799,7 +802,6 @@ class SongMetadataEditor(
                 } else {
                     propertyMap.remove("DISCNUMBER")
                 }
-                propertyMap["ALBUMARTIST"] = arrayOf(newArtist)
                 propertyMap.applyReplayGainUpdate(REPLAYGAIN_TRACK_GAIN_KEY, replayGainTrackUpdate)
                 propertyMap.applyReplayGainUpdate(REPLAYGAIN_ALBUM_GAIN_KEY, replayGainAlbumUpdate)
                 Timber.tag(TAG).e("TAGLIB: Updated property map, saving...")
@@ -891,7 +893,9 @@ class SongMetadataEditor(
             tag.setField(FieldKey.TITLE, newTitle)
             tag.setField(FieldKey.ARTIST, newArtist)
             tag.setField(FieldKey.ALBUM, newAlbum)
-            tag.setField(FieldKey.ALBUM_ARTIST, newAlbumArtist?.takeIf { it.isNotBlank() } ?: newArtist)
+            if (!newAlbumArtist.isNullOrBlank()) {
+                tag.setField(FieldKey.ALBUM_ARTIST, newAlbumArtist)
+            }
             if (!newComposer.isNullOrBlank()) {
                 tag.setField(FieldKey.COMPOSER, newComposer)
             } else {
@@ -996,7 +1000,7 @@ class SongMetadataEditor(
             
             tags.replaceSingleComment("TITLE", newTitle)
             tags.replaceSingleComment("ARTIST", newArtist)
-            tags.replaceSingleComment("ALBUMARTIST", newAlbumArtist?.takeIf { it.isNotBlank() } ?: newArtist)
+            tags.replaceSingleComment("ALBUMARTIST", newAlbumArtist?.takeIf { it.isNotBlank() })
             tags.replaceSingleComment("COMPOSER", newComposer)
             tags.replaceSingleComment("ALBUM", newAlbum)
             tags.replaceSingleComment("GENRE", newGenre)
@@ -1069,6 +1073,7 @@ class SongMetadataEditor(
         title: String,
         artist: String,
         album: String,
+        albumArtist: String?,
         genre: String,
         trackNumber: Int,
         discNumber: Int?
@@ -1084,7 +1089,9 @@ class SongMetadataEditor(
                 val encodedTrack = ((discNumber ?: 0) * 1000) + trackNumber
                 put(MediaStore.Audio.Media.TRACK, encodedTrack)
                 put(MediaStore.Audio.Media.DATE_MODIFIED, System.currentTimeMillis() / 1000)
-                put(MediaStore.Audio.Media.ALBUM_ARTIST, artist)
+                if (!albumArtist.isNullOrBlank()) {
+                    put(MediaStore.Audio.Media.ALBUM_ARTIST, albumArtist)
+                }
             }
 
             val rowsUpdated = context.contentResolver.update(uri, values, null, null)
