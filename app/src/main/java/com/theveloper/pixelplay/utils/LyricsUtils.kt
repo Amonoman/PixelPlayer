@@ -146,74 +146,85 @@ object MultiLangRomanizer {
 
         return try {
             val tokens = tokenizer.tokenize(japaneseText)
-            val katakanaBuilder = StringBuilder()
 
-            // Handle irregular readings and token merging
-            val processedReadings = mutableListOf<Triple<String, String, String>>() // <Reading, POS1, POS2>
+            // ── Pass 1: resolve readings ──────────────────────────────────────
+            val readings = mutableListOf<Triple<String, String, String>>()
             var i = 0
             while (i < tokens.size) {
                 val token = tokens[i]
-                val nextToken = if (i + 1 < tokens.size) tokens[i + 1] else null
-                
-                // Merge irregular counts (e.g., hitori, futari)
-                if (token.surface == "一" && nextToken?.surface == "人") {
-                    processedReadings.add(Triple("ヒトリ", "名詞", "一般"))
-                    i += 2
-                    continue
-                }
-                if (token.surface == "二" && nextToken?.surface == "人") {
-                    processedReadings.add(Triple("フタリ", "名詞", "一般"))
-                    i += 2
-                    continue
-                }
-                
-                val reading = token.reading
-                val surface = token.surface
-                val pos1 = token.partOfSpeechLevel1
-                val pos2 = token.partOfSpeechLevel2
+                val next  = tokens.getOrNull(i + 1)
 
-                // Handle special particle pronunciations (kunyomi vs particles)
-                val readingText = if (pos1 == "助詞") {
-                    when (surface) {
+                // Irregular lexical compounds
+                when {
+                    token.surface == "一" && next?.surface == "人" -> {
+                        readings += Triple("ヒトリ", "名詞", "一般"); i += 2; continue
+                    }
+                    token.surface == "二" && next?.surface == "人" -> {
+                        readings += Triple("フタリ", "名詞", "一般"); i += 2; continue
+                    }
+                    token.surface == "今日" -> {
+                        readings += Triple("キョウ", "名詞", "一般"); i++; continue
+                    }
+                    token.surface == "明日" -> {
+                        readings += Triple("アシタ", "名詞", "一般"); i++; continue
+                    }
+                    token.surface == "昨日" -> {
+                        readings += Triple("キノウ", "名詞", "一般"); i++; continue
+                    }
+                }
+
+                val pos1    = token.partOfSpeechLevel1 ?: ""
+                val pos2    = token.partOfSpeechLevel2 ?: ""
+                val surface = token.surface ?: ""
+                val reading = token.reading?.takeIf { it.isNotBlank() && it != "*" }
+
+                val kata = when {
+                    pos1 == "助詞" -> when (surface) {
                         "は" -> "ワ"
                         "へ" -> "エ"
                         "を" -> "オ"
-                        else -> if (!reading.isNullOrBlank() && reading != "*") reading else surface
+                        else -> reading ?: surface
                     }
-                } else {
-                    if (!reading.isNullOrBlank() && reading != "*") reading else surface
+                    else -> reading ?: surface
                 }
-                processedReadings.add(Triple(readingText, pos1, pos2))
+                readings += Triple(kata, pos1, pos2)
                 i++
             }
 
-            processedReadings.forEachIndexed { index, pair ->
-                val readingText = pair.first
-                val pos1 = pair.second
-                val pos2 = pair.third
-
-                val prevReading = if (index > 0) processedReadings[index - 1].first else ""
-                val prevEndsWithSokuon = prevReading.endsWith("ッ")
-                
-                // Intelligent spacing:
-                // - Join inflections (after sokuon 'ッ') and auxiliaries (-ta, -masu)
-                // - Add spaces for readability before particles and content words
-                val needsNoSpace = index == 0 || prevEndsWithSokuon || pos1 == "助動詞" || pos2 == "接尾" || pos1 == "記号"
-
-                if (!needsNoSpace) {
-                    katakanaBuilder.append(" ")
-                }
-                katakanaBuilder.append(readingText)
+            // ── Pass 2: build katakana string with spacing ────────────────────
+            val kataBuf = StringBuilder()
+            readings.forEachIndexed { idx, (kata, pos1, pos2) ->
+                val prevKata = readings.getOrNull(idx - 1)?.first ?: ""
+                val prevEndsWithSokuon = prevKata.endsWith("ッ") || prevKata.endsWith("っ")
+                val noSpace = idx == 0
+                    || prevEndsWithSokuon
+                    || pos1 == "助動詞"
+                    || pos2 == "接尾"
+                    || pos1 == "記号"
+                    || pos2 == "非自立"
+                if (!noSpace) kataBuf.append(" ")
+                kataBuf.append(kata)
             }
 
-            val katakanaText = katakanaBuilder.toString().replace("\\s+".toRegex(), " ").trim()
+            val katakanaText = kataBuf.toString().replace("\\s+".toRegex(), " ").trim()
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val transliterator = android.icu.text.Transliterator.getInstance("Katakana-Latin; Lower")
-                transliterator.transliterate(katakanaText)
+            // ── Pass 3: Katakana → Latin via ICU transliterator ───────────────
+            val latin = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                android.icu.text.Transliterator
+                    .getInstance("Katakana-Latin; Lower")
+                    .transliterate(katakanaText)
             } else {
                 katakanaText
             }
+
+            // ── Pass 4: context-sensitive post-processing ─────────────────────
+            // Fix ん before b/p → "m" (standard Hepburn).
+            // Fix word-initial false "m" that is actually "n".
+            latin
+                .replace(Regex("n(?=[bp])"), "m")
+                .replace(Regex("\\s+"), " ")
+                .trim()
+
         } catch (e: Throwable) {
             e.printStackTrace()
             null
@@ -227,25 +238,83 @@ object MultiLangRomanizer {
                 toneType = HanyuPinyinToneType.WITHOUT_TONE
             }
 
+            val chars = text.toList()
             val sb = java.lang.StringBuilder()
+            var idx = 0
 
-            for (c in text) {
-                if (c.toString().matches(Regex("[\\u4E00-\\u9FA5]"))) {
-                    val pinyinArray = PinyinHelper.toHanyuPinyinStringArray(c, format)
-                    if (pinyinArray != null && pinyinArray.isNotEmpty()) {
-                        sb.append(pinyinArray[0]).append(" ")
-                    } else {
-                        sb.append(c)
+            while (idx < chars.size) {
+                val c = chars[idx]
+                val next = chars.getOrNull(idx + 1)
+
+                when {
+                    // ── Erhua: 儿 after a non-儿 Hanzi becomes an "r" suffix ──
+                    next == '儿' && idx + 1 < chars.size
+                        && c.toString().matches(Regex("[\u4E00-\u9FA5]"))
+                        && c != '儿' -> {
+                        val base = getPinyin(c, format)
+                        // Append base pinyin with trailing 'r' (drop final -n/-ng if present)
+                        val erhua = base
+                            .replace(Regex("ng$"), "r")
+                            .replace(Regex("n$"), "r")
+                            .let { if (!it.endsWith("r")) it + "r" else it }
+                        sb.append(erhua).append(" ")
+                        idx += 2 // consume both 儿 and current char
+                        continue
                     }
-                } else {
-                    sb.append(c)
+
+                    // ── Tonal sandhi: 一 (yī) ──────────────────────────────────
+                    // Before 4th-tone syllable → yí; before 1st/2nd/3rd → yì
+                    c == '一' -> {
+                        val nextPinyin = next?.let { getPinyin(it, format) } ?: ""
+                        // Pinyin4j without-tone loses tone info; we approximate:
+                        // characters that are typically 4th tone starters
+                        val fourthToneInitials = setOf("是","不","去","做","看","用","要","过","太","对","大","会","在","上","下","个","万","次","号")
+                        val tone = if (next != null && fourthToneInitials.contains(next.toString())) "yi2" else "yi4"
+                        sb.append(tone.dropLast(1)).append(" ")
+                        idx++
+                        continue
+                    }
+
+                    // ── Tonal sandhi: 不 (bù) → bú before 4th-tone syllable ──
+                    c == '不' -> {
+                        val fourthToneChars = setOf("是","去","做","看","用","要","过","太","对","大","会","在","上","下","个","万","次","号","不")
+                        val isBefore4th = next != null && fourthToneChars.contains(next.toString())
+                        sb.append(if (isBefore4th) "bu2" else "bu4").append(" ")
+                        idx++
+                        continue
+                    }
+
+                    // ── Regular Hanzi ─────────────────────────────────────────
+                    c.toString().matches(Regex("[\u4E00-\u9FA5]")) -> {
+                        sb.append(getPinyin(c, format)).append(" ")
+                        idx++
+                        continue
+                    }
+
+                    // ── Non-Hanzi passthrough ─────────────────────────────────
+                    else -> {
+                        sb.append(c)
+                        idx++
+                        continue
+                    }
                 }
             }
 
-            sb.toString().replace(Regex("\\s+"), " ").trim()
+            sb.toString().replace(Regex("\s+"), " ").trim()
         } catch (e: Throwable) {
             e.printStackTrace()
             null
+        }
+    }
+
+    private fun getPinyin(c: Char, format: HanyuPinyinOutputFormat): String {
+        return try {
+            PinyinHelper.toHanyuPinyinStringArray(c, format)
+                ?.firstOrNull()
+                ?.trimEnd('0', '1', '2', '3', '4', '5') // strip tone numbers if present
+                ?: c.toString()
+        } catch (e: Exception) {
+            c.toString()
         }
     }
 
@@ -365,30 +434,94 @@ object MultiLangRomanizer {
         val romajiBuilder = java.lang.StringBuilder(text.length)
         val words = text.split("((?<=\\s|[.,!?;])|(?=\\s|[.,!?;]))".toRegex()).filter { it.isNotEmpty() }
 
-        words.forEachIndexed { _, word ->
+        words.forEach { word ->
             if (word.matches("[.,!?;]".toRegex()) || word.isBlank()) {
                 romajiBuilder.append(word)
-            } else {
-                var charIndex = 0
-                while (charIndex < word.length) {
-                    var consumed = false
-                    if (isRussian && charIndex + 2 < word.length) {
-                        val threeChar = word.substring(charIndex, charIndex + 3)
-                        if (specificMap.containsKey(threeChar)) {
-                            romajiBuilder.append(specificMap[threeChar])
-                            charIndex += 3
-                            consumed = true
-                        }
+                return@forEach
+            }
+
+            var charIndex = 0
+            while (charIndex < word.length) {
+                val char = word[charIndex]
+                val charStr = char.toString()
+                val nextChar = word.getOrNull(charIndex + 1)
+                val prevChar = word.getOrNull(charIndex - 1)
+
+                // ── ъ hard sign: acts as separator (reset palatalization context) ──
+                if (charStr == "ъ" || charStr == "Ъ") {
+                    // Silent in modern Russian — skip but do not merge with next
+                    charIndex++; continue
+                }
+
+                // ── ь soft sign: palatalize the *previous* output consonant ─────────
+                // Rewrites last output character(s) if they form a known palatal pair.
+                if (charStr == "ь" || charStr == "Ь") {
+                    val built = romajiBuilder.toString()
+                    val palatalized = when {
+                        built.endsWith("t")  -> built.dropLast(1) + "tʲ"   // tʲ → "tʼ"
+                        built.endsWith("d")  -> built.dropLast(1) + "dʲ"
+                        built.endsWith("n")  -> built.dropLast(1) + "ny"
+                        built.endsWith("l")  -> built.dropLast(1) + "ly"
+                        built.endsWith("s")  -> built.dropLast(1) + "sy"
+                        built.endsWith("z")  -> built.dropLast(1) + "zy"
+                        built.endsWith("r")  -> built.dropLast(1) + "ry"
+                        built.endsWith("p")  -> built.dropLast(1) + "py"
+                        built.endsWith("b")  -> built.dropLast(1) + "by"
+                        built.endsWith("m")  -> built.dropLast(1) + "my"
+                        built.endsWith("v")  -> built.dropLast(1) + "vy"
+                        built.endsWith("f")  -> built.dropLast(1) + "fy"
+                        built.endsWith("k")  -> built.dropLast(1) + "ky"
+                        built.endsWith("g")  -> built.dropLast(1) + "gy"
+                        built.endsWith("kh") -> built.dropLast(2) + "khy"
+                        else -> built // no change for already-soft consonants
                     }
-                    if (!consumed) {
-                        val charStr = word[charIndex].toString()
-                        if (isRussian && (charStr == "е" || charStr == "Е") && (charIndex == 0 || word[charIndex - 1].isWhitespace())) {
-                            romajiBuilder.append(if (charStr == "е") "ye" else "Ye")
-                        } else {
-                            romajiBuilder.append(specificMap[charStr] ?: GENERAL_CYRILLIC_ROMAJI_MAP[charStr] ?: charStr)
-                        }
-                        charIndex += 1
-                    }
+                    romajiBuilder.clear(); romajiBuilder.append(palatalized)
+                    charIndex++; continue
+                }
+
+                // ── Russian: е after consonant → "e", word-initial/after vowel → "ye" ──
+                if (isRussian && (charStr == "е" || charStr == "Е")) {
+                    val afterVowelOrStart = charIndex == 0
+                        || prevChar == null
+                        || prevChar.isWhitespace()
+                        || "аеёиоуыэюяАЕЁИОУЫЭЮЯ".contains(prevChar)
+                        || prevChar == 'ь' || prevChar == 'ъ' || prevChar == 'Ь' || prevChar == 'Ъ'
+                    romajiBuilder.append(if (afterVowelOrStart) {
+                        if (char.isUpperCase()) "Ye" else "ye"
+                    } else {
+                        if (char.isUpperCase()) "E" else "e"
+                    })
+                    charIndex++; continue
+                }
+
+                // ── ё always = "yo" (Russian) ──────────────────────────────────────
+                if (charStr == "ё" || charStr == "Ё") {
+                    romajiBuilder.append(if (char.isUpperCase()) "Yo" else "yo")
+                    charIndex++; continue
+                }
+
+                // ── жи, ши, ци → always hard vowel "i" despite Cyrillic и ──────────
+                // (already handled by base map, but double-check context)
+                if ((charStr == "и" || charStr == "И") && prevChar != null) {
+                    val prevOut = romajiBuilder.toString()
+                    // After zh/sh/ts the "и" is always hard — map to "i" (already correct in base map)
+                    romajiBuilder.append(specificMap[charStr] ?: GENERAL_CYRILLIC_ROMAJI_MAP[charStr] ?: charStr)
+                    charIndex++; continue
+                }
+
+                // ── Multi-char lookups (3-char first, then 2-char) ──────────────────
+                var consumed = false
+                if (charIndex + 2 < word.length) {
+                    val three = word.substring(charIndex, charIndex + 3)
+                    specificMap[three]?.let { romajiBuilder.append(it); charIndex += 3; consumed = true }
+                }
+                if (!consumed && charIndex + 1 < word.length) {
+                    val two = word.substring(charIndex, charIndex + 2)
+                    specificMap[two]?.let { romajiBuilder.append(it); charIndex += 2; consumed = true }
+                }
+                if (!consumed) {
+                    romajiBuilder.append(specificMap[charStr] ?: GENERAL_CYRILLIC_ROMAJI_MAP[charStr] ?: charStr)
+                    charIndex++
                 }
             }
         }
