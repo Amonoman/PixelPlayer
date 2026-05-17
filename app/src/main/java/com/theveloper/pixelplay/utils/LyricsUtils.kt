@@ -462,6 +462,14 @@ object LyricsUtils {
     private val TRANSLATION_CREDIT_REGEX = Regex("^\\s*by\\s*[:：].+", RegexOption.IGNORE_CASE)
     private val LRC_METADATA_PATTERN = Pattern.compile("^\\[[a-zA-Z]+:.*]$")
 
+    // Kugou / Paxsenix word-by-word format:
+    //   Line header : [lineStartMs,lineDurationMs]
+    //   Word token  : <wordOffsetMs,wordDurationMs,flags>word
+    // The line-start value is always > 999 ms, which distinguishes it from a
+    // standard LRC minute value (max 99).
+    private val KUGOU_LINE_REGEX = Pattern.compile("^\\[(\\d+),(\\d+)](.*)$")
+    private val KUGOU_WORD_PATTERN = Pattern.compile("<(\\d+),(\\d+),(\\d+)>([^<]*)")
+
     /**
      * Parsea un String que contiene una letra en formato LRC o texto plano.
      * @param lyricsText El texto de la letra a procesar.
@@ -477,6 +485,14 @@ object LyricsUtils {
             val converted = TtmlLyricsParser.parseToEnhancedLrc(normalizedInput)
                 ?: return Lyrics(plain = emptyList(), synced = emptyList())
             return parseLyrics(converted)
+        }
+
+        // Kugou / Paxsenix word-by-word detection:
+        // If any non-metadata line matches [number,number] where the first
+        // number is > 999 (i.e. milliseconds, not minutes), treat the whole
+        // file as Kugou format.
+        if (looksLikeKugouFormat(lyricsText)) {
+            return parseKugouLyrics(lyricsText)
         }
 
         val syncedLines = mutableListOf<SyncedLine>()
@@ -638,6 +654,103 @@ object LyricsUtils {
             }
             Lyrics(plain = processedPlain)
         }
+    }
+
+    // ── Kugou / Paxsenix word-by-word helpers ─────────────────────────────
+
+    /**
+     * Returns true when the raw text contains at least one line in Kugou format:
+     *   [lineStartMs,lineDurationMs]…
+     * where lineStartMs > 999 (milliseconds, not an LRC minute value).
+     */
+    private fun looksLikeKugouFormat(text: String): Boolean {
+        return text.lines().any { raw ->
+            val line = raw.trim()
+            if (line.isEmpty()) return@any false
+            // Skip metadata tags like [ti:…] [ar:…] [offset:…]
+            if (LRC_METADATA_PATTERN.matcher(line).matches()) return@any false
+            val m = KUGOU_LINE_REGEX.matcher(line)
+            m.matches() && (m.group(1)?.toLongOrNull() ?: 0L) > 999L
+        }
+    }
+
+    /**
+     * Parses a Kugou / Paxsenix word-by-word LRC file into [Lyrics].
+     *
+     * Line format:
+     *   [lineStartMs,lineDurationMs]<wordOffset1Ms,dur,0>word1<wordOffset2Ms,dur,0>word2…
+     *
+     * Word offsets are *relative* to the line start.
+     * A word token with offset 0 and no preceding tokens means the token is the
+     * line itself; subsequent 0-offset tokens are continuations (startsNewWord = false).
+     *
+     * An optional [offset:N] header (milliseconds) shifts all timestamps.
+     */
+    private fun parseKugouLyrics(text: String): Lyrics {
+        val globalOffsetMs = text.lines()
+            .firstOrNull { it.trim().startsWith("[offset:", ignoreCase = true) }
+            ?.trim()
+            ?.removePrefix("[offset:")
+            ?.removeSuffix("]")
+            ?.trim()
+            ?.toLongOrNull() ?: 0L
+
+        val syncedLines = mutableListOf<SyncedLine>()
+
+        for (raw in text.lines()) {
+            val line = raw.trim()
+            if (line.isEmpty() || LRC_METADATA_PATTERN.matcher(line).matches()) continue
+
+            val headerMatcher = KUGOU_LINE_REGEX.matcher(line)
+            if (!headerMatcher.matches()) continue
+            val lineStartMs = (headerMatcher.group(1)?.toLongOrNull() ?: continue) + globalOffsetMs
+            if (lineStartMs <= 999L && globalOffsetMs == 0L) continue // guard: not a Kugou line
+            val body = headerMatcher.group(3) ?: ""
+
+            // Build word list
+            val words = mutableListOf<SyncedWord>()
+            val wordMatcher = KUGOU_WORD_PATTERN.matcher(body)
+            var previousEndsWithSpace = true // first word always starts a new word
+
+            while (wordMatcher.find()) {
+                val wordOffsetMs = wordMatcher.group(1)?.toLongOrNull() ?: 0L
+                // group(2) = duration, group(3) = flags — both unused for display
+                val rawText = wordMatcher.group(4) ?: ""
+
+                val startsNew = previousEndsWithSpace || rawText.firstOrNull()?.isWhitespace() == true
+                val wordText = rawText.trim()
+                previousEndsWithSpace = rawText.lastOrNull()?.isWhitespace() == true
+
+                if (wordText.isEmpty()) continue
+
+                words.add(
+                    SyncedWord(
+                        time = (lineStartMs + wordOffsetMs).toInt(),
+                        word = wordText,
+                        startsNewWord = startsNew
+                    )
+                )
+            }
+
+            // Plain text: strip all <…> tokens
+            val plainText = KUGOU_WORD_PATTERN.toRegex().replace(body) { it.groupValues[4] }.trim()
+            if (plainText.isEmpty() && words.isEmpty()) continue
+
+            syncedLines.add(
+                SyncedLine(
+                    time = lineStartMs.toInt(),
+                    line = plainText,
+                    words = words.takeIf { it.isNotEmpty() }
+                )
+            )
+        }
+
+        if (syncedLines.isEmpty()) return Lyrics(plain = emptyList(), synced = emptyList())
+
+        val sorted = syncedLines.sortedBy { it.time }
+        val paired = pairTranslationLines(sorted)
+        val plainVersion = paired.map { it.line }
+        return Lyrics(synced = paired, plain = plainVersion, areFromRemote = false)
     }
 
     /**
