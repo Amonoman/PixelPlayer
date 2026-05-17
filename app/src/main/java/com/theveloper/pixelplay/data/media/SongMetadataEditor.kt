@@ -96,6 +96,8 @@ class SongMetadataEditor(
         const val MAX_TITLE_LENGTH = 500
         const val MAX_ARTIST_LENGTH = 500
         const val MAX_ALBUM_LENGTH = 500
+        const val MAX_ALBUM_ARTIST_LENGTH = 500
+        const val MAX_COMPOSER_LENGTH = 500
         const val MAX_GENRE_LENGTH = 100
         const val MAX_LYRICS_LENGTH = 50_000
     }
@@ -107,6 +109,8 @@ class SongMetadataEditor(
         title: String,
         artist: String,
         album: String,
+        albumArtist: String?,
+        composer: String?,
         genre: String,
         lyrics: String
     ): String? {
@@ -114,6 +118,8 @@ class SongMetadataEditor(
         if (title.length > MetadataLimits.MAX_TITLE_LENGTH) return "Title too long"
         if (artist.length > MetadataLimits.MAX_ARTIST_LENGTH) return "Artist name too long"
         if (album.length > MetadataLimits.MAX_ALBUM_LENGTH) return "Album name too long"
+        if (!albumArtist.isNullOrBlank() && albumArtist.length > MetadataLimits.MAX_ALBUM_ARTIST_LENGTH) return "Album artist name too long"
+        if (!composer.isNullOrBlank() && composer.length > MetadataLimits.MAX_COMPOSER_LENGTH) return "Composer name too long"
         if (genre.length > MetadataLimits.MAX_GENRE_LENGTH) return "Genre too long"
         if (lyrics.length > MetadataLimits.MAX_LYRICS_LENGTH) return "Lyrics too long"
         return null
@@ -229,6 +235,8 @@ class SongMetadataEditor(
         newTitle: String,
         newArtist: String,
         newAlbum: String,
+        newAlbumArtist: String? = null,
+        newComposer: String? = null,
         newGenre: String,
         newLyrics: String,
         newTrackNumber: Int,
@@ -237,7 +245,7 @@ class SongMetadataEditor(
         newReplayGainAlbumGainDb: String? = null,
         coverArtUpdate: CoverArtUpdate? = null,
     ): SongMetadataEditResult = withContext(Dispatchers.IO) {
-        val validationError = validateMetadataInput(newTitle, newArtist, newAlbum, newGenre, newLyrics)
+        val validationError = validateMetadataInput(newTitle, newArtist, newAlbum, newAlbumArtist, newComposer, newGenre, newLyrics)
         if (validationError != null) {
             Timber.w("Metadata validation failed: $validationError")
             return@withContext SongMetadataEditResult(
@@ -339,6 +347,8 @@ class SongMetadataEditor(
                         newTitle = newTitle,
                         newArtist = newArtist,
                         newAlbum = newAlbum,
+                        newAlbumArtist = newAlbumArtist,
+                        newComposer = newComposer,
                         newGenre = trimmedGenre,
                         newLyrics = trimmedLyrics,
                         newTrackNumber = newTrackNumber,
@@ -354,6 +364,8 @@ class SongMetadataEditor(
                         newTitle = newTitle,
                         newArtist = newArtist,
                         newAlbum = newAlbum,
+                        newAlbumArtist = newAlbumArtist,
+                        newComposer = newComposer,
                         newGenre = trimmedGenre,
                         newLyrics = trimmedLyrics,
                         newTrackNumber = newTrackNumber,
@@ -369,6 +381,8 @@ class SongMetadataEditor(
                         newTitle = newTitle,
                         newArtist = newArtist,
                         newAlbum = newAlbum,
+                        newAlbumArtist = newAlbumArtist,
+                        newComposer = newComposer,
                         newGenre = trimmedGenre,
                         newLyrics = trimmedLyrics,
                         newTrackNumber = newTrackNumber,
@@ -385,6 +399,8 @@ class SongMetadataEditor(
                             newTitle = newTitle,
                             newArtist = newArtist,
                             newAlbum = newAlbum,
+                            newAlbumArtist = newAlbumArtist,
+                            newComposer = newComposer,
                             newGenre = trimmedGenre,
                             newLyrics = trimmedLyrics,
                             newTrackNumber = newTrackNumber,
@@ -727,6 +743,8 @@ class SongMetadataEditor(
         newTitle: String,
         newArtist: String,
         newAlbum: String,
+        newAlbumArtist: String?,
+        newComposer: String?,
         newGenre: String,
         newLyrics: String,
         newTrackNumber: Int,
@@ -771,6 +789,8 @@ class SongMetadataEditor(
                 propertyMap["TITLE"] = arrayOf(newTitle)
                 propertyMap["ARTIST"] = arrayOf(newArtist)
                 propertyMap["ALBUM"] = arrayOf(newAlbum)
+                propertyMap.upsertOrRemove("ALBUMARTIST", newAlbumArtist?.takeIf { it.isNotBlank() } ?: newArtist)
+                propertyMap.upsertOrRemove("COMPOSER", newComposer)
                 propertyMap.upsertOrRemove("GENRE", newGenre)
                 propertyMap.upsertOrRemove("LYRICS", newLyrics)
                 propertyMap["TRACKNUMBER"] = arrayOf(newTrackNumber.toString())
@@ -848,6 +868,8 @@ class SongMetadataEditor(
         newTitle: String,
         newArtist: String,
         newAlbum: String,
+        newAlbumArtist: String?,
+        newComposer: String?,
         newGenre: String,
         newLyrics: String,
         newTrackNumber: Int,
@@ -869,7 +891,12 @@ class SongMetadataEditor(
             tag.setField(FieldKey.TITLE, newTitle)
             tag.setField(FieldKey.ARTIST, newArtist)
             tag.setField(FieldKey.ALBUM, newAlbum)
-            tag.setField(FieldKey.ALBUM_ARTIST, newArtist)
+            tag.setField(FieldKey.ALBUM_ARTIST, newAlbumArtist?.takeIf { it.isNotBlank() } ?: newArtist)
+            if (!newComposer.isNullOrBlank()) {
+                tag.setField(FieldKey.COMPOSER, newComposer)
+            } else {
+                tag.deleteField(FieldKey.COMPOSER)
+            }
             
             if (newGenre.isNotBlank()) {
                 tag.setField(FieldKey.GENRE, newGenre)
@@ -937,6 +964,8 @@ class SongMetadataEditor(
         newTitle: String,
         newArtist: String,
         newAlbum: String,
+        newAlbumArtist: String?,
+        newComposer: String?,
         newGenre: String,
         newLyrics: String,
         newTrackNumber: Int,
@@ -967,7 +996,8 @@ class SongMetadataEditor(
             
             tags.replaceSingleComment("TITLE", newTitle)
             tags.replaceSingleComment("ARTIST", newArtist)
-            tags.replaceSingleComment("ALBUMARTIST", newArtist)
+            tags.replaceSingleComment("ALBUMARTIST", newAlbumArtist?.takeIf { it.isNotBlank() } ?: newArtist)
+            tags.replaceSingleComment("COMPOSER", newComposer)
             tags.replaceSingleComment("ALBUM", newAlbum)
             tags.replaceSingleComment("GENRE", newGenre)
             tags.replaceSingleComment("LYRICS", newLyrics)
