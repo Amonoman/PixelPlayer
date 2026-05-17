@@ -54,7 +54,7 @@ import kotlin.math.PI
 import kotlin.math.max
 import kotlin.math.sin
 
-// Roman Multilang 
+// Roman Multilang
 object MultiLangRomanizer {
     private val kuromojiTokenizer: Tokenizer? by lazy {
         try {
@@ -359,7 +359,7 @@ object MultiLangRomanizer {
             }
 
             val chars = text.toList()
-            val sb = java.lang.StringBuilder()
+            val sb = StringBuilder()
             var idx = 0
 
             while (idx < chars.size) {
@@ -420,7 +420,7 @@ object MultiLangRomanizer {
                 }
             }
 
-            sb.toString().replace(Regex("\s+"), " ").trim()
+            sb.toString().replace(Regex("""\s+"""), " ").trim()
         } catch (e: Throwable) {
             e.printStackTrace()
             null
@@ -458,7 +458,7 @@ object MultiLangRomanizer {
     }
 
     fun romanizeKorean(text: String): String {
-        val romajaBuilder = java.lang.StringBuilder()
+        val romajaBuilder = StringBuilder()
         var prevFinal: String? = null
         for (i in text.indices) {
             val char = text[i]
@@ -495,7 +495,7 @@ object MultiLangRomanizer {
     }
 
     fun romanizeHindi(text: String): String {
-        val sb = java.lang.StringBuilder(text.length)
+        val sb = StringBuilder(text.length)
         var i = 0
         while (i < text.length) {
             var consumed = false
@@ -518,7 +518,7 @@ object MultiLangRomanizer {
     }
 
     fun romanizePunjabi(text: String): String {
-        val sb = java.lang.StringBuilder(text.length)
+        val sb = StringBuilder(text.length)
         var i = 0
         while (i < text.length) {
             val char = text[i]
@@ -570,7 +570,7 @@ object MultiLangRomanizer {
     }
 
     private fun processCyrillicWordByWord(text: String, specificMap: Map<String, String>, isRussian: Boolean = false): String {
-        val romajiBuilder = java.lang.StringBuilder(text.length)
+        val romajiBuilder = StringBuilder(text.length)
         val words = text.split("((?<=\\s|[.,!?;])|(?=\\s|[.,!?;]))".toRegex()).filter { it.isNotEmpty() }
 
         words.forEach { word ->
@@ -668,7 +668,7 @@ object MultiLangRomanizer {
     }
 
     private fun processUkrainian(text: String): String {
-        val romajiBuilder = java.lang.StringBuilder(text.length)
+        val romajiBuilder = StringBuilder(text.length)
         val words = text.split("((?<=\\s|[.,!?;])|(?=\\s|[.,!?;]))".toRegex()).filter { it.isNotEmpty() }
 
         words.forEach { word ->
@@ -696,7 +696,7 @@ object MultiLangRomanizer {
     }
 
     private fun processBelarusian(text: String): String {
-        val romajiBuilder = java.lang.StringBuilder(text.length)
+        val romajiBuilder = StringBuilder(text.length)
         val words = text.split("((?<=\\s|[.,!?;])|(?=\\s|[.,!?;]))".toRegex()).filter { it.isNotEmpty() }
 
         words.forEach { word ->
@@ -743,9 +743,9 @@ object LyricsUtils {
     private val KUGOU_WORD_PATTERN = Pattern.compile("<(\\d+),(\\d+),(\\d+)>([^<]*)")
 
     /**
-     * Parsea un String que contiene una letra en formato LRC o texto plano.
-     * @param lyricsText El texto de la letra a procesar.
-     * @return Un objeto Lyrics con las listas 'plain' o 'synced' pobladas.
+     * Parses a String containing lyrics in LRC or plain-text format.
+     * @param lyricsText The raw lyrics text to process.
+     * @return A [Lyrics] object with either the 'plain' or 'synced' list populated.
      */
     fun parseLyrics(lyricsText: String?): Lyrics {
         if (lyricsText.isNullOrEmpty()) {
@@ -856,20 +856,19 @@ object LyricsUtils {
                     syncedLines.add(SyncedLine(lineTimestamp.toInt(), text))
                 }
             } else {
-                // línea SIN timestamp
+                // Line WITHOUT timestamp
                 val stripped = stripLrcTimestamps(stripFormatCharacters(line))
-                // Si ya detectamos que el archivo tiene sincronización y ya existe
-                // al menos una SyncedLine, tratamos esta línea como continuación
-                // de la anterior
+                // If the file was already detected as synced and at least one SyncedLine
+                // exists, treat this line as a continuation of the previous one.
                 if (isSynced && syncedLines.isNotEmpty()) {
                     val last = syncedLines.removeAt(syncedLines.lastIndex)
-                    // Mantenemos el texto previo y añadimos la nueva línea con un salto de línea.
+                    // Keep the previous text and append the new line with a newline break.
                     val mergedLineText = if (last.line.isEmpty()) {
                         stripped
                     } else {
                         last.line + "\n" + stripped
                     }
-                    // Conservamos la lista de palabras sincronizadas si existía.
+                    // Preserve the existing synced word list if present.
                     val merged = if (last.words?.isNotEmpty() == true) {
                         SyncedLine(last.time, mergedLineText, last.words)
                     } else {
@@ -878,7 +877,7 @@ object LyricsUtils {
 
                     syncedLines.add(merged)
                 } else {
-                    // Si no hay sincronización en el archivo, es texto plano
+                    // No sync markers found — treat as plain text.
                     plainLines.add(stripped)
                 }
             }
@@ -897,8 +896,6 @@ object LyricsUtils {
                     MultiLangRomanizer.isCyrillic(line.line) -> MultiLangRomanizer.romanizeCyrillic(line.line)
                     else -> null
                 }?.capitalizeFirstLetter()?.trim()
-
-                val origTrans = line.translation?.trim()
 
                 line.copy(romanization = romanized)
             }
@@ -1096,8 +1093,9 @@ object LyricsUtils {
 
     /**
      * Converts plain lyrics (list of lines) to a plain text string.
+     * Strips any auto-generated romanization suffix (after '\n') before storage.
      * @param plainLines The list of plain text lines.
-     * @return A string with each line separated by newline.
+     * @return A string with each line separated by a newline.
      */
     fun plainToString(plainLines: List<String>): String {
         // Strip auto-generated romanization (if present after \n) when converting back to string for storage.
@@ -1214,14 +1212,14 @@ fun ProviderText(
 }
 
 /**
- * Un composable que muestra una línea de burbujas animadas que se transforman
- * en notas musicales cuando suben y vuelven a ser círculos cuando bajan.
+ * A composable that displays a row of animated bubbles that morph into
+ * musical notes as they rise and back into circles as they fall.
  *
- * @param positionFlow Un flujo que emite la posición de reproducción actual.
- * @param time El tiempo de inicio para que estas burbujas sean visibles.
- * @param color El color base para las burbujas y las notas.
- * @param nextTime El tiempo final para que estas burbujas sean visibles.
- * @param modifier El modificador a aplicar a este layout.
+ * @param positionFlow A flow emitting the current playback position in ms.
+ * @param time The start time at which these bubbles become visible.
+ * @param color The base colour for the bubbles and notes.
+ * @param nextTime The end time at which these bubbles disappear.
+ * @param modifier Modifier applied to this layout.
  */
 @Composable
 fun BubblesLine(
@@ -1252,7 +1250,7 @@ fun BubblesLine(
 
     if (show) {
         val density = LocalDensity.current
-        // Círculos más pequeños para acentuar la animación de escala.
+        // Smaller circles to accentuate the scale animation.
         val bubbleRadius = remember(density) { with(density) { 4.dp.toPx() } }
 
         val (morphableCircle, morphableNote) = remember(bubbleRadius) {
@@ -1277,10 +1275,10 @@ fun BubblesLine(
                     else -> 0f
                 }.coerceIn(0f, 1f)
 
-                // La animación de escalado ahora es más pronunciada.
+                // Scale animation is more pronounced.
                 val scale = lerpFloat(1.0f, 1.4f, morphProgress)
 
-                // Se calcula un desplazamiento horizontal dinámico que se activa con el morphing.
+                // Dynamic horizontal offset that activates with morphing.
                 val xOffsetCorrection = lerpFloat(0f, bubbleRadius * 1.8f, morphProgress)
 
                 val morphedPath = lerpPath(
@@ -1289,13 +1287,13 @@ fun BubblesLine(
                     fraction = morphProgress
                 ).toPath()
 
-                // Se posiciona el contenedor de la animación en su columna.
+                // Position the animation container in its column.
                 translate(left = (size.width / (bubbleCount + 1)) * (i + 1)) {
-                    // Se aplica el desplazamiento vertical (onda) y la corrección horizontal.
+                    // Apply vertical offset (wave) and horizontal correction.
                     val drawOffset = Offset(x = xOffsetCorrection, y = size.height / 2 + yOffset)
 
                     translate(left = drawOffset.x, top = drawOffset.y) {
-                        // Se aplica la transformación de escala antes de dibujar.
+                        // Apply the scale transform before drawing.
                         scale(scale = scale, pivot = Offset.Zero) {
                             drawPath(
                                 path = morphedPath,
@@ -1309,7 +1307,7 @@ fun BubblesLine(
     }
 }
 
-// --- Lógica de Path Morphing ---
+// --- Path Morphing Logic ---
 
 private fun lerpPath(start: List<PathNode>, stop: List<PathNode>, fraction: Float): List<PathNode> {
     return start.mapIndexed { index, startNode ->
@@ -1379,7 +1377,7 @@ private fun createVectorNotePathNodes(targetSize: Float): MutableList<PathNode> 
     val finalWidth = bounds.width * groupScale * scale
     val finalHeight = bounds.height * groupScale * scale
 
-    // Se centra el path en su origen (0,0) sin correcciones estáticas.
+    // Center the path at origin (0,0) without static corrections.
     matrix.translate(x = -finalWidth / 2f, y = -finalHeight / 2f)
 
     return parser.toNodes().toAbsolute().transform(matrix).toCurvesOnly()
@@ -1398,7 +1396,7 @@ private fun createCirclePathNodes(radius: Float): MutableList<PathNode> {
     )
 }
 
-// --- Funciones de Extensión para PathNode ---
+// --- PathNode Extension Functions ---
 
 private fun List<PathNode>.toAbsolute(): MutableList<PathNode> {
     val absoluteNodes = mutableListOf<PathNode>()
@@ -1442,8 +1440,14 @@ private fun MutableList<PathNode>.toCurvesOnly(): MutableList<PathNode> {
 private fun List<PathNode>.transform(matrix: Matrix): MutableList<PathNode> {
     return this.map { node ->
         when (node) {
-            is PathNode.MoveTo -> PathNode.MoveTo(matrix.map(Offset(node.x, node.y)).x, matrix.map(Offset(node.x, node.y)).y)
-            is PathNode.LineTo -> PathNode.LineTo(matrix.map(Offset(node.x, node.y)).x, matrix.map(Offset(node.x, node.y)).y)
+            is PathNode.MoveTo -> {
+                val p = matrix.map(Offset(node.x, node.y))
+                PathNode.MoveTo(p.x, p.y)
+            }
+            is PathNode.LineTo -> {
+                val p = matrix.map(Offset(node.x, node.y))
+                PathNode.LineTo(p.x, p.y)
+            }
             is PathNode.CurveTo -> {
                 val p1 = matrix.map(Offset(node.x1, node.y1))
                 val p2 = matrix.map(Offset(node.x2, node.y2))
