@@ -231,6 +231,126 @@ object MultiLangRomanizer {
         }
     }
 
+    // ── 多音字 (polyphone) override table ────────────────────────────────────
+    // Pinyin4j always returns the statistically most common reading which is
+    // wrong in many song-lyric contexts. This table provides the dominant
+    // lyric-usage reading for the most frequent polyphonies.
+    // Format: Char → preferred pinyin (no tone, lowercase, matches Pinyin4j output format)
+    private val POLYPHONE_OVERRIDE = mapOf(
+        // 中 zhōng (middle/China) vs zhòng (hit/heavy) — zhong far more common in lyrics
+        '中' to "zhong",
+        // 行 xíng (walk/OK) vs háng (row/profession)
+        '行' to "xing",
+        // 乐 lè (happy) vs yuè (music) — context: 音乐→yue, 快乐→le; default to le
+        // (handled contextually below)
+        // 长 cháng (long) vs zhǎng (grow/leader)
+        '长' to "chang",
+        // 重 zhòng (heavy/important) vs chóng (repeat/again)
+        '重' to "zhong",
+        // 好 hǎo (good) vs hào (like/hobby)
+        '好' to "hao",
+        // 觉 jué (feel/sense) vs jiào (sleep)
+        '觉' to "jue",
+        // 得 de (structural particle) vs dé (get) vs děi (must)
+        '得' to "de",
+        // 地 dì (earth) vs de (structural particle)
+        // context: after adjective → de; standalone → di; default di
+        '地' to "di",
+        // 的 de (possessive particle) — always de in lyrics
+        '的' to "de",
+        // 了 le (completion particle) vs liǎo (finish/understand)
+        '了' to "le",
+        // 还 hái (still/yet) vs huán (return)
+        '还' to "hai",
+        // 只 zhǐ (only) vs zhī (measure word for animals)
+        '只' to "zhi",
+        // 着 zhe (progressive particle) vs zháo (touch) vs zhāo (trick)
+        '着' to "zhe",
+        // 没 méi (not have) vs mò (sink/drown)
+        '没' to "mei",
+        // 为 wèi (for/because) vs wéi (be/act as)
+        '为' to "wei",
+        // 难 nán (difficult) vs nàn (disaster)
+        '难' to "nan",
+        // 空 kōng (empty/sky) vs kòng (free time/gap)
+        '空' to "kong",
+        // 间 jiān (between/room) vs jiàn (interval)
+        '间' to "jian",
+        // 数 shù (number) vs shǔ (count) vs shuò (frequent)
+        '数' to "shu",
+        // 差 chā (difference) vs chà (bad/differ) vs chāi (dispatch)
+        '差' to "cha",
+        // 调 diào (tune/transfer) vs tiáo (adjust)
+        '调' to "diao",
+        // 传 chuán (pass/spread) vs zhuàn (biography)
+        '传' to "chuan",
+        // 弹 tán (play instrument/flick) vs dàn (bullet/bomb)
+        '弹' to "tan",
+        // 发 fā (send/emit) vs fà (hair)
+        '发' to "fa",
+        // 分 fēn (minute/divide) vs fèn (portion/share)
+        '分' to "fen",
+        // 过 guò (pass/experience) — always guo as particle
+        '过' to "guo",
+        // 和 hé (and/harmonious) vs hè (respond in singing) vs huó (mix)
+        '和' to "he",
+        // 会 huì (can/meeting) vs kuài (fast — dialectal)
+        '会' to "hui",
+        // 看 kàn (look) vs kān (watch over)
+        '看' to "kan",
+        // 乐 — handled contextually: 音乐 yuè, 快乐/高兴 lè
+        // 男 nán — only one reading, but Pinyin4j sometimes fails
+        '男' to "nan",
+        // 女 nǚ
+        '女' to "nu",
+        // 儿 ér (child/Erhua marker)
+        '儿' to "er",
+        // 那 nà (that) vs nǎ (which) vs nèi (contraction)
+        '那' to "na",
+        // 哪 nǎ (which)
+        '哪' to "na",
+        // 啊 a (exclamation) — always a
+        '啊' to "a",
+        // 吗 ma (question particle)
+        '吗' to "ma",
+        // 呢 ne (particle)
+        '呢' to "ne",
+        // 吧 ba (particle)
+        '吧' to "ba",
+        // 嗯 ń/ňg — approximated
+        '嗯' to "en",
+        // 哦 ó/ò — approximated
+        '哦' to "o",
+        // 喔 ō
+        '喔' to "o",
+        // 哇 wā (wow)
+        '哇' to "wa",
+        // 咦 yí (surprise)
+        '咦' to "yi",
+        // 呀 ya (particle)
+        '呀' to "ya",
+        // 嘛 ma (obviously particle)
+        '嘛' to "ma"
+    )
+
+    // Context-sensitive overrides: when character follows specific preceding characters
+    // Map: prevChar → Map<thisChar, pinyin>
+    private val CONTEXT_PINYIN = mapOf(
+        '音' to mapOf('乐' to "yue"),   // 音乐 = yīnyuè (music)
+        '快' to mapOf('乐' to "le"),    // 快乐 = kuàilè (happy)
+        '欢' to mapOf('乐' to "le"),    // 欢乐 = huānlè
+        '娱' to mapOf('乐' to "le"),    // 娱乐 = yúlè
+        '生' to mapOf('长' to "zhang"), // 生长 = shēngzhǎng (grow)
+        '成' to mapOf('长' to "zhang"), // 成长 = chéngzhǎng (grow up)
+        '长' to mapOf('大' to "da"),    // 长大 = zhǎngdà
+        '重' to mapOf('复' to "fu"),    // 重复 = chóngfù (repeat) — prev char triggers
+        '再' to mapOf('重' to "chong"), // 再重 → chong context
+        '严' to mapOf('重' to "zhong"), // 严重 = yánzhòng (serious)
+        '地' to mapOf('方' to "di"),    // 地方 = dìfāng
+        '大' to mapOf('地' to "di"),    // 大地 = dàdì
+        '土' to mapOf('地' to "di")     // 土地 = tǔdì
+    )
+
     fun romanizeChinese(text: String): String? {
         return try {
             val format = HanyuPinyinOutputFormat().apply {
@@ -251,7 +371,7 @@ object MultiLangRomanizer {
                     next == '儿' && idx + 1 < chars.size
                         && c.toString().matches(Regex("[\u4E00-\u9FA5]"))
                         && c != '儿' -> {
-                        val base = getPinyin(c, format)
+                        val base = getPinyin(c, format, prevChar = chars.getOrNull(idx - 1))
                         // Append base pinyin with trailing 'r' (drop final -n/-ng if present)
                         val erhua = base
                             .replace(Regex("ng$"), "r")
@@ -286,7 +406,7 @@ object MultiLangRomanizer {
 
                     // ── Regular Hanzi ─────────────────────────────────────────
                     c.toString().matches(Regex("[\u4E00-\u9FA5]")) -> {
-                        sb.append(getPinyin(c, format)).append(" ")
+                        sb.append(getPinyin(c, format, prevChar = chars.getOrNull(idx - 1))).append(" ")
                         idx++
                         continue
                     }
@@ -307,11 +427,30 @@ object MultiLangRomanizer {
         }
     }
 
-    private fun getPinyin(c: Char, format: HanyuPinyinOutputFormat): String {
+    /**
+     * Returns the preferred pinyin for [c], consulting in order:
+     *  1. Context map (prevChar → thisChar → pinyin)
+     *  2. Polyphone override table (dominant lyric-usage reading)
+     *  3. Pinyin4j library (fallback)
+     */
+    private fun getPinyin(
+        c: Char,
+        format: HanyuPinyinOutputFormat,
+        prevChar: Char? = null
+    ): String {
+        // 1. Context-sensitive override
+        prevChar?.let { prev ->
+            CONTEXT_PINYIN[prev]?.get(c)?.let { return it }
+        }
+
+        // 2. Polyphone override
+        POLYPHONE_OVERRIDE[c]?.let { return it }
+
+        // 3. Pinyin4j fallback
         return try {
             PinyinHelper.toHanyuPinyinStringArray(c, format)
                 ?.firstOrNull()
-                ?.trimEnd('0', '1', '2', '3', '4', '5') // strip tone numbers if present
+                ?.trimEnd('0', '1', '2', '3', '4', '5')
                 ?: c.toString()
         } catch (e: Exception) {
             c.toString()
