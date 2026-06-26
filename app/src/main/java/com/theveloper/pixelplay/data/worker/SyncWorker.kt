@@ -893,8 +893,8 @@ constructor(
                     } else -1
 
                     while (cursor.moveToNext()) {
+                        val data = cursor.getString(dataCol) ?: continue
                         try {
-                            val data = cursor.getString(dataCol) ?: continue
                             val lastSlash = data.lastIndexOf('/')
                             if (lastSlash > 0) {
                                 val normalizedParent = data.substring(0, lastSlash)
@@ -906,12 +906,20 @@ constructor(
                             // Proceed on error
                         }
 
+                        // Cursor getters cross into native CursorWindow code; read each column
+                        // once per row and reuse the value, rather than calling the same
+                        // getter twice (trackCol previously fed both trackNumber and
+                        // discNumber via two separate cursor.getInt(trackCol) calls, and
+                        // dataCol was read once above for the directory filter and again
+                        // here for filePath).
+                        val rawTrack = cursor.getInt(trackCol)
+
                         rawDataList.add(
                                 RawSongData(
                                         id = cursor.getLong(idCol),
                                         albumId = cursor.getLong(albumIdCol),
                                         artistId = cursor.getLong(artistIdCol),
-                                        filePath = cursor.getString(dataCol) ?: "",
+                                        filePath = data,
                                         mimeType = if (mimeTypeCol >= 0) cursor.getString(mimeTypeCol) else null,
                                         title =
                                                 cursor.getString(titleCol)
@@ -932,8 +940,8 @@ constructor(
                                                                 ?.takeIf { it.isNotBlank() }
                                                 else null,
                                         duration = cursor.getLong(durationCol),
-                                        trackNumber = cursor.getInt(trackCol) % 1000,
-                                        discNumber = (cursor.getInt(trackCol) / 1000).takeIf { it > 0 },
+                                        trackNumber = rawTrack % 1000,
+                                        discNumber = (rawTrack / 1000).takeIf { it > 0 },
                                         year = cursor.getInt(yearCol),
                                         dateModified = cursor.getLong(dateModifiedCol),
                                         genre = if (genreCol >= 0) cursor.getString(genreCol) else null
@@ -952,12 +960,17 @@ constructor(
         val artistDelimiters = userPreferencesRepository.artistDelimitersFlow.first()
         val artistWordDelimiters = userPreferencesRepository.artistWordDelimitersFlow.first()
         val rawSongCount = rawDataList.size
-        val songsToProcess = if (isRebuild) {
-             rawDataList.toList()
+        // Pairs of (raw MediaStore data, existing local entity if any). Phase 2 already has
+        // to fetch each song's existing entity to decide whether it changed; carrying that
+        // entity forward here means Phase 3 doesn't have to issue the same
+        // getSongsByIdsListSimple query a second time for the same IDs just to get the same
+        // data again for the merge step below.
+        val songsToProcess: List<Pair<RawSongData, SongEntity?>> = if (isRebuild) {
+             rawDataList.map { it to null }
         } else {
             // Find existing data for these songs to avoid unnecessary reprocessing
             // and to preserve user edits.
-            val results = mutableListOf<RawSongData>()
+            val results = mutableListOf<Pair<RawSongData, SongEntity?>>()
             
             rawDataList.chunked(500).forEach { batch ->
                 val ids = batch.map { it.id }
@@ -966,7 +979,7 @@ constructor(
                 batch.forEach { raw ->
                     val existing = existingMap[raw.id]
                     if (!isSongUnchanged(raw, existing)) {
-                        results.add(raw)
+                        results.add(raw to existing)
                     }
                 }
             }
@@ -993,17 +1006,15 @@ constructor(
         val concurrencyLimit = 4 // Reduced concurrency to save memory
         val semaphore = Semaphore(concurrencyLimit)
 
-        // Process batches sequentially so each batch's existingMap can be GC'd before the next
-        // batch is loaded. The semaphore still limits concurrency within each batch.
+        // Process batches sequentially to keep peak memory bounded, same as before. The
+        // per-batch existingMap query from the original version is gone — localSong now comes
+        // from the pair carried over from Phase 2 instead of a second DB round-trip.
         val songs = mutableListOf<SongEntity>()
         for (batch in songsToProcess.chunked(200)) {
-            val ids = batch.map { it.id }
-            val existingMap = if (isRebuild) emptyMap() else musicDao.getSongsByIdsListSimple(ids).associateBy { it.id }
             val batchResults = coroutineScope {
-                batch.map { raw ->
+                batch.map { (raw, localSong) ->
                     async {
                         semaphore.withPermit {
-                            val localSong = existingMap[raw.id]
                             val mediaStoreSong =
                                 processSongData(
                                     raw = raw,
@@ -1187,9 +1198,18 @@ constructor(
             while (cursor.moveToNext()) {
                 val data = cursor.getString(dataCol)
                 if (data != null) {
-                    val parentPath = File(data).parent
-                    if (parentPath != null && directoryResolver.isBlocked(File(parentPath).absolutePath)) {
-                        continue
+                    // MediaStore's DATA column is always an absolute path, so the parent
+                    // path derived from it is already absolute — no need to re-wrap it in a
+                    // second File just to call .absolutePath, which was allocating two File
+                    // objects per row (one for .parent, one for .absolutePath) purely to
+                    // arrive back at the same string. String slicing matches the leaner
+                    // approach already used for this same check in fetchMusicFromMediaStore.
+                    val lastSlash = data.lastIndexOf('/')
+                    if (lastSlash > 0) {
+                        val parentPath = data.substring(0, lastSlash)
+                        if (directoryResolver.isBlocked(parentPath)) {
+                            continue
+                        }
                     }
                 }
                 ids.add(cursor.getLong(idCol))
@@ -1635,6 +1655,9 @@ constructor(
                 // across chunks, so the count may be updated again in a later chunk upsert — that
                 // is fine because incrementalSyncMusicData uses upsert (INSERT OR REPLACE), so
                 // the last chunk to touch an album wins with the final correct count.
+                // cleanupOrphans=false: this is a pure-insert chunk (no deletions), so it can't
+                // create orphans. Cleanup runs once after all chunks (including the deletion
+                // loop below) instead of on every one of the ~200 chunk flushes for 100k songs.
                 val finalAlbums = albumsToInsert.values.map { album ->
                     album.copy(songCount = albumSongCounts[album.id] ?: 0)
                 }
@@ -1643,7 +1666,8 @@ constructor(
                     albums = finalAlbums,
                     artists = artistsToInsert.values.toList(),
                     crossRefs = crossRefsToInsert,
-                    deletedSongIds = emptyList() // Deletions handled after all chunks
+                    deletedSongIds = emptyList(), // Deletions handled after all chunks
+                    cleanupOrphans = false
                 )
                 totalSynced += songsToInsert.size
                 Log.d(TAG, "Telegram sync: flushed chunk of ${songsToInsert.size} songs ($totalSynced / ${telegramSongs.size} total)")
@@ -1659,11 +1683,15 @@ constructor(
                         albums = emptyList(),
                         artists = emptyList(),
                         crossRefs = emptyList(),
-                        deletedSongIds = batch
+                        deletedSongIds = batch,
+                        cleanupOrphans = false
                     )
                 }
                 Log.i(TAG, "Telegram sync: removed ${deletedUnifiedSongIds.size} deleted songs.")
             }
+
+            // Single orphan cleanup for the whole sync, instead of one per chunk above.
+            musicDao.cleanupOrphanedMusicData()
 
             Log.i(TAG, "Synced $totalSynced Telegram songs with Unified Metadata.")
         } catch (e: Exception) {
@@ -1693,11 +1721,16 @@ constructor(
             neteaseSongs.forEach { nSong ->
                 val songId = toUnifiedNeteaseSongId(nSong.neteaseId)
                 val artistNames = parseNeteaseArtistNames(nSong.artist)
+                // Computed once per song and reused below for the cross-ref loop, the
+                // primary artist ID, and the JSON artist refs — previously this called
+                // toUnifiedNeteaseArtistId (a lowercase()+hashCode() per call) up to three
+                // separate times for the same artist name within the same song iteration.
+                val artistIds = artistNames.map { toUnifiedNeteaseArtistId(it) }
                 val primaryArtistName = artistNames.firstOrNull() ?: "Unknown Artist"
-                val primaryArtistId = toUnifiedNeteaseArtistId(primaryArtistName)
+                val primaryArtistId = artistIds.firstOrNull() ?: toUnifiedNeteaseArtistId(primaryArtistName)
 
                 artistNames.forEachIndexed { index, artistName ->
-                    val artistId = toUnifiedNeteaseArtistId(artistName)
+                    val artistId = artistIds[index]
                     artistsToInsert.putIfAbsent(
                         artistId,
                         ArtistEntity(
@@ -1735,7 +1768,7 @@ constructor(
                 // Build artists JSON
                 val neteaseArtistRefs = artistNames.mapIndexed { idx, name ->
                     ArtistRef(
-                        id = toUnifiedNeteaseArtistId(name),
+                        id = artistIds[idx],
                         name = name,
                         isPrimary = idx == 0
                     )
