@@ -34,6 +34,14 @@ import kotlin.math.absoluteValue
 
 import timber.log.Timber
 
+/**
+ * Progress of an in-flight getAudioMessages fetch. current = songs fetched so far,
+ * approxTotal = -1 if unknown, otherwise TDLib's approximate count for the channel (see
+ * TelegramRepository.getApproxAudioMessageCount). Shared by every call site that wants to
+ * show fetch progress, rather than each declaring its own copy of the same shape.
+ */
+data class TelegramSyncProgress(val current: Int, val approxTotal: Int)
+
 @Singleton
 class TelegramRepository @Inject constructor(
     private val clientManager: TelegramClientManager,
@@ -345,7 +353,47 @@ class TelegramRepository @Inject constructor(
 
     // ─── Full-channel fetch
 
-    suspend fun getAudioMessages(chatId: Long): List<Song> {
+    // Field name not independently confirmed for this exact tdlibx build (the same caution
+    // that applies to ForumTopicInfo's threadId field elsewhere in this file — TDLib docs for
+    // this library have already turned out to not match this build's actual compiled API
+    // once this session, for SetTdlibParameters). Reflection with a short candidate list and
+    // a graceful fallback, rather than a guessed direct field access that might not compile
+    // or might silently read the wrong thing.
+    private fun extractApproxCount(count: TdApi.Count): Int {
+        val candidateNames = listOf("count", "value", "approximateCount")
+        for (name in candidateNames) {
+            try {
+                val field = count.javaClass.getDeclaredField(name)
+                field.isAccessible = true
+                val value = field.get(count)
+                if (value is Int) return value
+            } catch (_: NoSuchFieldException) { }
+        }
+        Timber.w("Count: could not resolve count field, tried $candidateNames")
+        return -1
+    }
+
+    /**
+     * Approximate number of audio messages in a chat, used to decide whether a fetch is large
+     * enough to warrant a determinate progress indicator rather than an indeterminate spinner.
+     * Returns -1 if the count could not be determined (treat as "unknown", not "zero").
+     */
+    suspend fun getApproxAudioMessageCount(chatId: Long): Int {
+        return try {
+            val result = clientManager.sendRequest<TdApi.Count>(
+                TdApi.GetChatMessageCount(chatId, null, TdApi.SearchMessagesFilterAudio(), false)
+            )
+            extractApproxCount(result)
+        } catch (e: Exception) {
+            Timber.w(e, "getApproxAudioMessageCount failed for chat $chatId")
+            -1
+        }
+    }
+
+    suspend fun getAudioMessages(
+        chatId: Long,
+        onProgress: (suspend (current: Int, approxTotal: Int) -> Unit)? = null
+    ): List<Song> {
         Timber.d("Fetching chat history for chat: $chatId")
         try {
             clientManager.sendRequest<TdApi.Ok>(TdApi.OpenChat(chatId))
