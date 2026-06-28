@@ -54,6 +54,8 @@ import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MediumExtendedFloatingActionButton
 import androidx.compose.material3.ModalBottomSheet
@@ -94,6 +96,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.theveloper.pixelplay.data.database.TelegramChannelEntity
 import com.theveloper.pixelplay.data.database.TelegramTopicEntity
+import com.theveloper.pixelplay.data.telegram.TelegramSyncProgress
 import com.theveloper.pixelplay.presentation.components.CollapsibleCommonTopBar
 import com.theveloper.pixelplay.presentation.components.NoInternetScreen
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
@@ -114,6 +117,7 @@ fun TelegramDashboardScreen(
 ) {
     val channels by viewModel.channels.collectAsStateWithLifecycle()
     val isRefreshingId by viewModel.isRefreshing.collectAsStateWithLifecycle()
+    val syncProgress by viewModel.syncProgress.collectAsStateWithLifecycle()
     val statusMessage by viewModel.statusMessage.collectAsStateWithLifecycle()
     val isOnline by viewModel.isOnline.collectAsStateWithLifecycle()
     val topicsMap by viewModel.topicsMap.collectAsStateWithLifecycle()
@@ -240,6 +244,7 @@ fun TelegramDashboardScreen(
                         ExpressiveChannelItem(
                             channel = channel,
                             isSyncing = isRefreshingId == channel.chatId,
+                            syncProgress = syncProgress?.takeIf { isRefreshingId == channel.chatId },
                             topics = channelTopics,
                             isExpanded = isExpanded,
                             onSync = { viewModel.refreshChannel(channel) },
@@ -312,6 +317,7 @@ fun TelegramDashboardScreen(
             ChannelActionsBottomSheet(
                 channel = selectedChannel,
                 isSyncing = isRefreshingId == selectedChannel.chatId,
+                syncProgress = syncProgress?.takeIf { isRefreshingId == selectedChannel.chatId },
                 onDismiss = { selectedChannelForActions = null },
                 onSync = {
                     selectedChannelForActions = null
@@ -383,6 +389,7 @@ fun TelegramDashboardScreen(
 private fun ExpressiveChannelItem(
     channel: TelegramChannelEntity,
     isSyncing: Boolean,
+    syncProgress: TelegramSyncProgress?,
     topics: List<TelegramTopicEntity>,
     isExpanded: Boolean,
     onSync: () -> Unit,
@@ -591,6 +598,51 @@ private fun ExpressiveChannelItem(
                 }
             }
 
+            // ── Sync progress bar. Two cases:
+            // - Known total >= 5000 (flat channel fetch): determinate LinearWavyProgressIndicator
+            //   with a percentage. Only redraws on progress value changes, so geometry
+            //   allocation is bounded and safe even under memory pressure.
+            // - Unknown total (forum topic fetch, approxTotal == -1): plain
+            //   LinearProgressIndicator (indeterminate). The wavy variant was confirmed as
+            //   an OOM cause here via an unobfuscated stack trace: its IndeterminateLinear
+            //   WavyProgressNode allocates a new Matrix on every draw frame continuously,
+            //   which tipped the heap over the edge when it was already near-full from a
+            //   concurrent Telegram fetch + full MediaStore sync. The plain variant draws a
+            //   simple rectangle with no per-frame geometry allocation.
+            AnimatedVisibility(
+                visible = isSyncing && syncProgress != null &&
+                    (syncProgress.approxTotal >= 5000 || syncProgress.approxTotal == -1),
+                enter = expandVertically(),
+                exit = shrinkVertically()
+            ) {
+                if (syncProgress != null) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
+                        if (syncProgress.approxTotal > 0) {
+                            val fraction = (syncProgress.current.toFloat() / syncProgress.approxTotal.toFloat())
+                                .coerceIn(0f, 1f)
+                            LinearWavyProgressIndicator(
+                                progress = { fraction },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "${syncProgress.current} / ${syncProgress.approxTotal}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "${syncProgress.current} songs so far",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
             // ── Expandable topics list ──────────────────────────────────
             AnimatedVisibility(
                 visible = isExpanded && topics.isNotEmpty(),
@@ -708,6 +760,7 @@ private fun TopicRow(topic: TelegramTopicEntity) {
 private fun ChannelActionsBottomSheet(
     channel: TelegramChannelEntity,
     isSyncing: Boolean,
+    syncProgress: TelegramSyncProgress?,
     onDismiss: () -> Unit,
     onSync: () -> Unit,
     onDelete: () -> Unit
@@ -779,6 +832,39 @@ private fun ChannelActionsBottomSheet(
                     null
                 }
             )
+            AnimatedVisibility(
+                visible = isSyncing && syncProgress != null &&
+                    (syncProgress.approxTotal >= 5000 || syncProgress.approxTotal == -1),
+                enter = expandVertically(),
+                exit = shrinkVertically()
+            ) {
+                if (syncProgress != null) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
+                        if (syncProgress.approxTotal > 0) {
+                            val fraction = (syncProgress.current.toFloat() / syncProgress.approxTotal.toFloat())
+                                .coerceIn(0f, 1f)
+                            LinearWavyProgressIndicator(
+                                progress = { fraction },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "${syncProgress.current} / ${syncProgress.approxTotal}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "${syncProgress.current} songs so far",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
             Spacer(modifier = Modifier.height(14.dp))
             ChannelActionCard(
                 title = stringResource(R.string.telegram_remove_channel),

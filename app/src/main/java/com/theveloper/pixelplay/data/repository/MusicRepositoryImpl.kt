@@ -79,6 +79,10 @@ import androidx.paging.PagingData
 import androidx.paging.map
 import androidx.paging.filter
 import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.SupervisorJob
@@ -170,7 +174,9 @@ class MusicRepositoryImpl @Inject constructor(
 
         repositoryScope.launch {
             telegramRepository.songFileUpdated.collect {
-                androidx.work.WorkManager.getInstance(context).enqueue(
+                androidx.work.WorkManager.getInstance(context).enqueueUniqueWork(
+                    com.theveloper.pixelplay.data.worker.SyncWorker.WORK_NAME,
+                    androidx.work.ExistingWorkPolicy.KEEP,
                     com.theveloper.pixelplay.data.worker.SyncWorker.incrementalSyncWork()
                 )
             }
@@ -393,8 +399,12 @@ class MusicRepositoryImpl @Inject constructor(
             ensureTelegramDownloadSyncObserverStarted()
             telegramDao.insertSongs(entities)
             telegramRepository.warmUpArtworkForSongs(entities)
-            // Trigger sync to update main DB
-            androidx.work.WorkManager.getInstance(context).enqueue(
+            // Trigger sync to update main DB — enqueueUniqueWork/KEEP matches
+            // requestTelegramUnifiedSync's policy, so concurrent calls (e.g. rapid
+            // downloads) coalesce into one worker instead of stacking up.
+            androidx.work.WorkManager.getInstance(context).enqueueUniqueWork(
+                com.theveloper.pixelplay.data.worker.SyncWorker.WORK_NAME,
+                androidx.work.ExistingWorkPolicy.KEEP,
                 com.theveloper.pixelplay.data.worker.SyncWorker.incrementalSyncWork()
             )
         }
