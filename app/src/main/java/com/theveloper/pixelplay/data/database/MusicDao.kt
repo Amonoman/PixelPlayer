@@ -1548,6 +1548,13 @@ interface MusicDao {
     @Query("UPDATE artists SET image_url = :imageUrl WHERE id = :artistId")
     suspend fun updateArtistImageUrl(artistId: Long, imageUrl: String)
 
+    // Clears the persistent "no image found" sentinel from all artists so the next
+    // prefetch attempt will retry Deezer for them. Called by ArtistImageRepository.clearCache()
+    // when the user forces a refresh. The sentinel value must match NO_IMAGE_SENTINEL in
+    // ArtistImageRepository.
+    @Query("UPDATE artists SET image_url = NULL WHERE image_url = 'no_image'")
+    suspend fun clearArtistNoImageSentinels()
+
     @Query("SELECT id FROM artists WHERE name = :name LIMIT 1")
     suspend fun getArtistIdByName(name: String): Long?
 

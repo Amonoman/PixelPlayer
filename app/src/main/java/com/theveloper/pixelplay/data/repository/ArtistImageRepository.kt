@@ -51,6 +51,12 @@ class ArtistImageRepository @Inject constructor(
         private const val TARGET_CUSTOM_IMAGE_MAX_DIMENSION_PX = 2_048
         private const val TARGET_CUSTOM_IMAGE_MAX_PIXELS = 4_194_304L // 2048x2048
 
+        // Sentinel written to artists.image_url when Deezer has no image for an artist.
+        // Persists the "not found" result across cold starts, so the same 503-artist sweep
+        // doesn't repeat on every app launch. Cleared by clearArtistNoImageSentinels()
+        // when the user explicitly refreshes artist images (clearCache()).
+        internal const val NO_IMAGE_SENTINEL = "no_image"
+
         internal fun calculateCustomImageSampleSize(width: Int, height: Int): Int {
             var sampleSize = 1
             while (
@@ -106,6 +112,13 @@ class ArtistImageRepository @Inject constructor(
             canonicalArtistId to cachedUrl
         }
         if (!dbCachedUrl.isNullOrEmpty()) {
+            // Treat the sentinel as a persisted "not found" — same as failedFetches but
+            // survives cold starts. Don't put it in memoryCache (it's not a URL), and
+            // don't try to upgrade it or write it back.
+            if (dbCachedUrl == NO_IMAGE_SENTINEL) {
+                failedFetches.add(normalizedName) // also populate in-memory set for this session
+                return null
+            }
             val upgradedDbUrl = upgradeToHighResDeezerUrl(dbCachedUrl)
             memoryCache.put(normalizedName, upgradedDbUrl)
             if (upgradedDbUrl != dbCachedUrl) {
@@ -132,21 +145,27 @@ class ArtistImageRepository @Inject constructor(
         ) {
             mapOf("artistCount" to artists.size.toString())
         }
+        // Pre-filter before chunking: exclude artists whose normalized name is already in
+        // failedFetches or memoryCache so we never create coroutine objects for them at all.
+        // Previously this check happened *inside* each async lambda — meaning 503 failed
+        // artists each got their own coroutine created, launched, and immediately discarded
+        // on every trigger (every 7-19 seconds per the performance report), generating
+        // ~400-600ms frame stalls continuously. Filtering first means the chunked/async
+        // machinery only ever touches artists that actually need a network call.
+        val actionable = artists.filter { (_, artistName) ->
+            val normalized = artistName.trim().lowercase()
+            memoryCache.get(normalized) == null && !failedFetches.contains(normalized)
+        }
         // Process in small chunks to avoid creating hundreds of coroutines simultaneously.
         // Without this, a library with 500 artists creates 500 coroutine objects at once, all
         // suspended at the semaphore, exhausting the heap and triggering OOM in coroutine machinery.
         try {
-            artists.chunked(PREFETCH_CONCURRENCY * 4).forEach { chunk ->
+            actionable.chunked(PREFETCH_CONCURRENCY * 4).forEach { chunk ->
                 chunk.map { (artistId, artistName) ->
                     async {
                         try {
-                            val normalizedName = artistName.trim().lowercase()
-                            if (memoryCache.get(normalizedName) == null && !failedFetches.contains(normalizedName)) {
-                                prefetchSemaphore.withPermit {
-                                    getArtistImageUrl(artistName, artistId)
-                                }
-                            } else {
-                                Timber.tag(TAG).d("Skipping prefetch for $artistName") //check
+                            prefetchSemaphore.withPermit {
+                                getArtistImageUrl(artistName, artistId)
                             }
                         } catch (e: CancellationException) {
                             throw e
@@ -213,7 +232,10 @@ class ArtistImageRepository @Inject constructor(
                     }
                 } else {
                     Timber.tag(TAG).d("No Deezer artist found for: $artistName")
-                    failedFetches.add(normalizedName) // Mark as failed
+                    failedFetches.add(normalizedName)
+                    // Persist so the next cold start doesn't retry this artist unnecessarily.
+                    // Cleared by clearArtistNoImageSentinels() when the user forces a refresh.
+                    musicDao.updateArtistImageUrl(artistId, NO_IMAGE_SENTINEL)
                     null
                 }
             }
@@ -221,9 +243,12 @@ class ArtistImageRepository @Inject constructor(
             throw e
         } catch (e: Exception) {
             Timber.tag(TAG).e("Error fetching artist image for $artistName: ${e.message}")
-            // Consider transient errors? For now treating as failed to avoid spam.
-            if(e !is java.net.SocketTimeoutException) {
+            // Transient errors (timeout) might succeed on retry; don't sentinel those.
+            // Persistent errors (not-found, API error) get the sentinel so the next cold
+            // start doesn't retry them.
+            if (e !is java.net.SocketTimeoutException) {
                 failedFetches.add(normalizedName)
+                musicDao.updateArtistImageUrl(artistId, NO_IMAGE_SENTINEL)
             }
             null
         } finally {
@@ -258,6 +283,10 @@ class ArtistImageRepository @Inject constructor(
     fun clearCache() {
         memoryCache.evictAll()
         failedFetches.clear()
+        // Also clear persisted no-image sentinels so the next prefetch retries all artists.
+        kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+            try { musicDao.clearArtistNoImageSentinels() } catch (e: Exception) { /* best-effort */ }
+        }
     }
 
     /**

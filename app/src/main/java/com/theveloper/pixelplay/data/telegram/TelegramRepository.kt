@@ -8,6 +8,7 @@ import com.theveloper.pixelplay.data.preferences.PlaylistPreferencesRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -382,7 +383,7 @@ class TelegramRepository @Inject constructor(
     suspend fun getApproxAudioMessageCount(chatId: Long): Int {
         return try {
             val result = clientManager.sendRequest<TdApi.Count>(
-                TdApi.GetChatMessageCount(chatId, null, TdApi.SearchMessagesFilterAudio(), false)
+                TdApi.GetChatMessageCount(chatId, TdApi.SearchMessagesFilterAudio(), false)
             )
             extractApproxCount(result)
         } catch (e: Exception) {

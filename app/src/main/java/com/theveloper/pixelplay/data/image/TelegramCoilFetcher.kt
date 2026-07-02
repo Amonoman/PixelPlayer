@@ -88,9 +88,13 @@ class TelegramCoilFetcher(
         val quality = uri.getQueryParameter("quality")
         val isThumbnailRequest = quality == "thumb"
 
-        // Priority 1: Try embedded art from FULLY DOWNLOADED audio files only
-        // This avoids IO contention during streaming while still getting high-quality art for buffered files
-        val embeddedArtPath = tryExtractEmbeddedArtIfSafe(chatId, messageId)
+        // Priority 1: Try embedded art from FULLY DOWNLOADED audio files only.
+        // Fetch the message here once and pass it in so tryExtractEmbeddedArtIfSafe doesn't
+        // need to call getMessage a second time — previously this caused two TDLib GetMessage
+        // JNI round-trips per fetch call (one here, one inside tryExtractEmbeddedArtIfSafe).
+        val message = telegramRepository.getMessage(chatId, messageId) ?: return null
+
+        val embeddedArtPath = tryExtractEmbeddedArtIfSafe(chatId, messageId, message)
         if (embeddedArtPath != null) {
             Timber.v("TelegramCoilFetcher: Using embedded art for $uri")
             return SourceResult(
@@ -102,9 +106,6 @@ class TelegramCoilFetcher(
                 dataSource = DataSource.DISK
             )
         }
-        
-        // Fetch message to get thumbnail info and minithumbnail
-        val message = telegramRepository.getMessage(chatId, messageId) ?: return null
 
         // Priority 2: Minithumbnail Fallback (Low Res - embedded in message)
         // For thumbnail requests, we check this early to avoid network calls if possible
@@ -205,7 +206,11 @@ class TelegramCoilFetcher(
      * SAFETY: Only extracts if file is fully downloaded to avoid IO contention during streaming.
      * Returns the path to the cached art file if successful, null otherwise.
      */
-    private suspend fun tryExtractEmbeddedArtIfSafe(chatId: Long, messageId: Long): String? {
+    private suspend fun tryExtractEmbeddedArtIfSafe(
+        chatId: Long,
+        messageId: Long,
+        message: TdApi.Message
+    ): String? {
         val key = "${chatId}_${messageId}"
         val cachedArtFile = File(cacheDir, "telegram_embedded_art_${key}.jpg")
         val noArtMarker = File(cacheDir, "telegram_embedded_art_${key}_none")
@@ -232,8 +237,7 @@ class TelegramCoilFetcher(
             }
             
             // 4. Proceed with Extraction
-            // Get the message to find the audio file ID
-            val message = telegramRepository.getMessage(chatId, messageId) ?: return null
+            // audioFileId resolved from the already-fetched message passed in by fetch()
             val audioFileId = extractAudioFileId(message.content) ?: return null
 
             // Check if the audio file is already downloaded
@@ -318,15 +322,6 @@ class TelegramCoilFetcher(
                 // Ignore release errors
             }
         }
-    }
-
-    /**
-     * Extracts the thumbnail file ID from a message.
-     * Supports MessageAudio and MessageDocument content types.
-     */
-    private suspend fun extractThumbnailFileId(chatId: Long, messageId: Long): Int? {
-        val message = telegramRepository.getMessage(chatId, messageId) ?: return null
-        return extractFileIdFromContent(message.content)
     }
 
     /**
