@@ -1,13 +1,5 @@
 package com.theveloper.pixelplay.data.telegram
 
-/**
- * Progress of an in-flight getAudioMessages fetch. current = songs fetched so far,
- * approxTotal = -1 if unknown, otherwise TDLib's approximate count for the channel (see
- * TelegramRepository.getApproxAudioMessageCount). Shared by every call site that wants to
- * show fetch progress, rather than each declaring its own copy of the same shape.
- */
-data class TelegramSyncProgress(val current: Int, val approxTotal: Int)
-
 import com.theveloper.pixelplay.data.database.TelegramDao
 import com.theveloper.pixelplay.data.database.TelegramSongEntity
 import com.theveloper.pixelplay.data.database.TelegramTopicEntity
@@ -39,7 +31,6 @@ import org.drinkless.tdlib.TdApi
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.absoluteValue
-
 import timber.log.Timber
 
 /**
@@ -391,7 +382,7 @@ class TelegramRepository @Inject constructor(
     suspend fun getApproxAudioMessageCount(chatId: Long): Int {
         return try {
             val result = clientManager.sendRequest<TdApi.Count>(
-                TdApi.GetChatMessageCount(chatId, TdApi.SearchMessagesFilterAudio(), false)
+                TdApi.GetChatMessageCount(chatId, null, TdApi.SearchMessagesFilterAudio(), false)
             )
             extractApproxCount(result)
         } catch (e: Exception) {
@@ -676,14 +667,24 @@ class TelegramRepository @Inject constructor(
         if (targets.isEmpty()) return
 
         repositoryScope.launch {
-            targets.forEach { (chatId, messageId) ->
-                try {
-                    warmUpArtwork(chatId, messageId)
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    Timber.v(e, "Artwork warm-up failed for $chatId/$messageId")
-                }
+            // Parallelise with a small semaphore — previously sequential, which meant
+            // up to 24 sequential getMessage+download round-trips before the user could
+            // see artwork for any of the first songs loaded after a channel sync.
+            val semaphore = kotlinx.coroutines.sync.Semaphore(4)
+            coroutineScope {
+                targets.map { (chatId, messageId) ->
+                    async {
+                        semaphore.withPermit {
+                            try {
+                                warmUpArtwork(chatId, messageId)
+                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                Timber.v(e, "Artwork warm-up failed for $chatId/$messageId")
+                            }
+                        }
+                    }
+                }.awaitAll()
             }
         }
     }
