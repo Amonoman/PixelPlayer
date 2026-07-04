@@ -15,6 +15,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -284,7 +286,8 @@ class ArtistImageRepository @Inject constructor(
         memoryCache.evictAll()
         failedFetches.clear()
         // Also clear persisted no-image sentinels so the next prefetch retries all artists.
-        kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+        @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
+        GlobalScope.launch(Dispatchers.IO) {
             try { musicDao.clearArtistNoImageSentinels() } catch (e: Exception) { /* best-effort */ }
         }
     }
